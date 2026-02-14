@@ -42,6 +42,7 @@ interface WorkspaceContextValue {
     prompt: string,
     outputType: 'text' | 'number' | 'boolean',
   ) => Promise<ColumnDefinition | null>;
+  deleteColumn: (columnId: string) => Promise<void>;
   updateColumnWidth: (columnId: string, width: number) => void;
 
   // Rows & cells
@@ -49,6 +50,7 @@ interface WorkspaceContextValue {
   cellValues: CellValue[];
   gridRows: GridRow[];
   addRow: () => Promise<void>;
+  deleteRows: (rowIds: string[]) => Promise<void>;
   upsertCellValue: (rowId: string, columnId: string, value: string) => Promise<void>;
   bulkInsertRows: (
     mappedData: Array<Record<string, string>>,
@@ -260,6 +262,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [activeWorkspaceId, columns],
   );
 
+  const deleteColumn = useCallback(
+    async (columnId: string) => {
+      try {
+        await db.deleteColumn(columnId);
+        setColumns((prev) => prev.filter((c) => c.id !== columnId));
+        setCellValues((prev) => prev.filter((cv) => cv.column_id !== columnId));
+      } catch (err) {
+        console.error('Failed to delete column:', err);
+      }
+    },
+    [],
+  );
+
   // Debounced column width update
   const updateColumnWidth = useCallback(
     (columnId: string, width: number) => {
@@ -294,6 +309,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       console.error('Failed to add row:', err);
     }
   }, [activeWorkspaceId]);
+
+  const deleteRows = useCallback(
+    async (rowIds: string[]) => {
+      if (rowIds.length === 0) return;
+      try {
+        await db.deleteRows(rowIds);
+        const idSet = new Set(rowIds);
+        setRows((prev) => prev.filter((r) => !idSet.has(r.id)));
+        setCellValues((prev) => prev.filter((cv) => !idSet.has(cv.row_id)));
+      } catch (err) {
+        console.error('Failed to delete rows:', err);
+      }
+    },
+    [],
+  );
 
   // ── Cell actions ──
   const upsertCellValue = useCallback(
@@ -383,11 +413,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         columns,
         addColumn,
         addAiColumn,
+        deleteColumn,
         updateColumnWidth,
         rows,
         cellValues,
         gridRows,
         addRow,
+        deleteRows,
         upsertCellValue,
         bulkInsertRows,
         refreshData,

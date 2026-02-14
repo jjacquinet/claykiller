@@ -13,7 +13,10 @@ type Operation =
   | { action: 'insert'; table: string; data: Record<string, unknown> | Record<string, unknown>[]; returnData?: boolean }
   | { action: 'update'; table: string; data: Record<string, unknown>; match: Record<string, string> }
   | { action: 'upsert'; table: string; data: Record<string, unknown>; onConflict: string }
-  | { action: 'delete'; table: string; match: Record<string, string> };
+  | { action: 'delete'; table: string; match: Record<string, string> }
+  | { action: 'delete_in'; table: string; column: string; values: string[] }
+  | { action: 'delete_column'; columnId: string }
+  | { action: 'delete_rows'; rowIds: string[] };
 
 export async function POST(req: NextRequest) {
   try {
@@ -115,6 +118,52 @@ export async function POST(req: NextRequest) {
         const { data, error } = await query.select();
         if (error) return NextResponse.json({ error: error.message }, { status: 400 });
         return NextResponse.json({ data });
+      }
+
+      case 'delete_in': {
+        // DELETE FROM table WHERE column IN (values) — batched
+        const batchDel = 50;
+        for (let i = 0; i < op.values.length; i += batchDel) {
+          const batch = op.values.slice(i, i + batchDel);
+          const { error } = await supabase
+            .from(op.table)
+            .delete()
+            .in(op.column, batch);
+          if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+        return NextResponse.json({ data: { deleted: op.values.length } });
+      }
+
+      case 'delete_column': {
+        // Delete all cell_values for this column, then delete the column definition
+        const { error: cellErr } = await supabase
+          .from('cell_values')
+          .delete()
+          .eq('column_id', op.columnId);
+        if (cellErr) return NextResponse.json({ error: cellErr.message }, { status: 400 });
+
+        const { error: colErr } = await supabase
+          .from('column_definitions')
+          .delete()
+          .eq('id', op.columnId);
+        if (colErr) return NextResponse.json({ error: colErr.message }, { status: 400 });
+
+        return NextResponse.json({ data: { deleted: true } });
+      }
+
+      case 'delete_rows': {
+        // Delete all cell_values for these rows, then delete the rows
+        const rowBatch = 50;
+        for (let i = 0; i < op.rowIds.length; i += rowBatch) {
+          const batch = op.rowIds.slice(i, i + rowBatch);
+          await supabase.from('cell_values').delete().in('row_id', batch);
+        }
+        for (let i = 0; i < op.rowIds.length; i += rowBatch) {
+          const batch = op.rowIds.slice(i, i + rowBatch);
+          const { error } = await supabase.from('rows').delete().in('id', batch);
+          if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+        return NextResponse.json({ data: { deleted: op.rowIds.length } });
       }
 
       default:

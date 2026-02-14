@@ -1,13 +1,15 @@
 'use client';
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AgGridReact } from '@ag-grid-community/react';
 import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model';
 import type {
-  CellValueChangedEvent,
+  CellEditRequestEvent,
   ColDef,
   ColumnResizedEvent,
   ICellRendererParams,
+  IHeaderParams,
+  SelectionChangedEvent,
 } from '@ag-grid-community/core';
 import { ModuleRegistry } from '@ag-grid-community/core';
 import { useWorkspace } from '@/lib/workspace-context';
@@ -16,6 +18,14 @@ import type { GridRow } from '@/lib/types';
 
 // Register the module once
 ModuleRegistry.registerModules([ClientSideRowModelModule]);
+
+// ── Undo stack entry ──
+interface UndoEntry {
+  rowId: string;
+  columnId: string;
+  oldValue: string;
+  newValue: string;
+}
 
 // ── Boolean cell renderer ──
 function BooleanRenderer(params: ICellRendererParams) {
@@ -37,15 +47,46 @@ function BooleanRenderer(params: ICellRendererParams) {
   return <span className="text-gray-400">{params.value ?? ''}</span>;
 }
 
-// ── AI Column header with sparkle icon ──
-function AiHeaderRenderer(props: { displayName: string }) {
+// ── Custom column header with sort indicator + delete button ──
+function ColumnHeader(params: IHeaderParams & { onDeleteColumn: (colId: string) => void }) {
+  const isAi = params.column.getColDef().headerComponentParams?.isAi;
+  const colId = params.column.getColId();
+  const [sortState, setSortState] = useState<'asc' | 'desc' | null>(null);
+
+  const onSortClicked = (e: React.MouseEvent) => {
+    // Cycle: none -> asc -> desc -> none
+    const next = sortState === null ? 'asc' : sortState === 'asc' ? 'desc' : null;
+    setSortState(next);
+    params.setSort(next, e.shiftKey);
+  };
+
+  const onDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    params.onDeleteColumn(colId);
+  };
+
   return (
-    <span className="flex items-center gap-1">
-      <svg className="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-      </svg>
-      {props.displayName}
-    </span>
+    <div className="flex items-center w-full group cursor-pointer select-none" onClick={onSortClicked}>
+      <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+        {isAi && (
+          <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
+        )}
+        <span className="truncate">{params.displayName}</span>
+        {sortState === 'asc' && <span className="text-gray-400 ml-0.5">▲</span>}
+        {sortState === 'desc' && <span className="text-gray-400 ml-0.5">▼</span>}
+      </div>
+      <button
+        onClick={onDelete}
+        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-gray-500 hover:text-red-400 transition-all flex-shrink-0 ml-1"
+        title="Delete column"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -60,10 +101,113 @@ function SpinnerRenderer() {
 }
 
 export default function DataGrid() {
-  const { columns, gridRows, upsertCellValue, updateColumnWidth, activeWorkspace, loading } =
-    useWorkspace();
+  const {
+    columns,
+    gridRows,
+    upsertCellValue,
+    updateColumnWidth,
+    deleteColumn,
+    deleteRows,
+    activeWorkspace,
+    loading,
+  } = useWorkspace();
   const { toast } = useToast();
   const gridRef = useRef<AgGridReact>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+
+  // ── Custom undo/redo stacks ──
+  const undoStackRef = useRef<UndoEntry[]>([]);
+  const redoStackRef = useRef<UndoEntry[]>([]);
+
+  const performUndo = useCallback(async () => {
+    const entry = undoStackRef.current.pop();
+    if (!entry) {
+      toast('Nothing to undo', 'info');
+      return;
+    }
+    try {
+      await upsertCellValue(entry.rowId, entry.columnId, entry.oldValue);
+      redoStackRef.current.push(entry);
+      toast('Undone', 'success');
+    } catch {
+      // Push it back if undo failed
+      undoStackRef.current.push(entry);
+      toast('Undo failed', 'error');
+    }
+  }, [upsertCellValue, toast]);
+
+  const performRedo = useCallback(async () => {
+    const entry = redoStackRef.current.pop();
+    if (!entry) {
+      toast('Nothing to redo', 'info');
+      return;
+    }
+    try {
+      await upsertCellValue(entry.rowId, entry.columnId, entry.newValue);
+      undoStackRef.current.push(entry);
+      toast('Redone', 'success');
+    } catch {
+      redoStackRef.current.push(entry);
+      toast('Redo failed', 'error');
+    }
+  }, [upsertCellValue, toast]);
+
+  // ── Keyboard shortcut for Cmd+Z / Cmd+Shift+Z ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey;
+      if (!isMod || e.key.toLowerCase() !== 'z') return;
+
+      // Don't intercept if user is actively editing a cell (let AG Grid handle inline editing)
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) return;
+
+      e.preventDefault();
+      if (e.shiftKey) {
+        performRedo();
+      } else {
+        performUndo();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [performUndo, performRedo]);
+
+  // ── Delete column handler (passed into header component) ──
+  const handleDeleteColumn = useCallback(
+    async (colId: string) => {
+      const col = columns.find((c) => c.id === colId);
+      if (!col) return;
+      const confirmed = window.confirm(`Delete column "${col.name}"? This will remove all data in this column.`);
+      if (!confirmed) return;
+      try {
+        await deleteColumn(colId);
+        toast(`Column "${col.name}" deleted`, 'success');
+      } catch {
+        toast('Failed to delete column', 'error');
+      }
+    },
+    [columns, deleteColumn, toast],
+  );
+
+  // ── Delete selected rows handler ──
+  const handleDeleteSelectedRows = useCallback(async () => {
+    if (selectedRowIds.length === 0) return;
+    const confirmed = window.confirm(
+      `Delete ${selectedRowIds.length} selected row${selectedRowIds.length > 1 ? 's' : ''}? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await deleteRows(selectedRowIds);
+      setSelectedRowIds([]);
+      toast(`${selectedRowIds.length} row${selectedRowIds.length > 1 ? 's' : ''} deleted`, 'success');
+    } catch {
+      toast('Failed to delete rows', 'error');
+    }
+    setDeleting(false);
+  }, [selectedRowIds, deleteRows, toast]);
 
   // ── Column Definitions ──
   const columnDefs: ColDef[] = useMemo(() => {
@@ -77,12 +221,12 @@ export default function DataGrid() {
         resizable: true,
         minWidth: 100,
         flex: 0,
+        headerComponent: ColumnHeader,
+        headerComponentParams: {
+          isAi: col.is_ai_column,
+          onDeleteColumn: handleDeleteColumn,
+        },
       };
-
-      // AI column header with sparkle
-      if (col.is_ai_column) {
-        def.headerComponent = AiHeaderRenderer;
-      }
 
       // Boolean output type for AI columns
       if (col.is_ai_column && col.output_type === 'boolean') {
@@ -108,27 +252,52 @@ export default function DataGrid() {
     };
 
     return [checkboxCol, ...dataCols];
-  }, [columns]);
+  }, [columns, handleDeleteColumn]);
 
   // ── Row Data ──
   const rowData: GridRow[] = useMemo(() => gridRows, [gridRows]);
 
-  // ── Cell edit handler ──
-  const handleCellValueChanged = useCallback(
-    async (event: CellValueChangedEvent) => {
+  // ── Selection changed handler ──
+  const handleSelectionChanged = useCallback(
+    (event: SelectionChangedEvent) => {
+      const selected = event.api.getSelectedRows() as GridRow[];
+      setSelectedRowIds(selected.map((r) => r._rowId));
+    },
+    [],
+  );
+
+  // ── Cell edit request handler (readOnlyEdit mode) ──
+  // AG Grid does NOT auto-apply the edit — we confirm first, then update our data source
+  const handleCellEditRequest = useCallback(
+    async (event: CellEditRequestEvent) => {
       const rowId = event.data._rowId as string;
       const columnId = event.colDef.field as string;
-      const newValue = event.newValue ?? '';
+      const oldValue = String(event.oldValue ?? '');
+      const newValue = String(event.newValue ?? '');
+      const colName = event.colDef.headerName ?? 'cell';
+
+      // No change — skip
+      if (oldValue === newValue) return;
+
+      const confirmed = window.confirm(
+        `Update "${colName}" from "${oldValue || '(empty)'}" to "${newValue || '(empty)'}"?`,
+      );
+      if (!confirmed) return;
 
       try {
-        await upsertCellValue(rowId, columnId, String(newValue));
+        await upsertCellValue(rowId, columnId, newValue);
+        // Push to undo stack, clear redo stack
+        undoStackRef.current.push({ rowId, columnId, oldValue, newValue });
+        redoStackRef.current = [];
+        toast(`Updated "${colName}"`, 'success', {
+          label: 'Undo',
+          onClick: () => performUndo(),
+        });
       } catch {
-        // Revert on failure
-        event.node.setDataValue(columnId, event.oldValue);
         toast('Failed to save cell', 'error');
       }
     },
-    [upsertCellValue, toast],
+    [upsertCellValue, toast, performUndo],
   );
 
   // ── Column resize handler ──
@@ -190,28 +359,55 @@ export default function DataGrid() {
   }
 
   return (
-    <div className="ag-theme-quartz-dark" style={{ width: '100%', height: '100%' }}>
-      <AgGridReact
-        ref={gridRef}
-        columnDefs={columnDefs}
-        rowData={rowData}
-        defaultColDef={{
-          resizable: true,
-          editable: true,
-          sortable: true,
-          minWidth: 100,
-          flex: 0,
-        }}
-        rowSelection="multiple"
-        onCellValueChanged={handleCellValueChanged}
-        onColumnResized={handleColumnResized}
-        rowHeight={40}
-        headerHeight={44}
-        animateRows={true}
-        getRowId={(params) => params.data._rowId}
-        suppressClickEdit={false}
-        suppressRowClickSelection={true}
-      />
+    <div className="relative" style={{ width: '100%', height: '100%' }}>
+      <div className="ag-theme-quartz-dark" style={{ width: '100%', height: '100%' }}>
+        <AgGridReact
+          ref={gridRef}
+          columnDefs={columnDefs}
+          rowData={rowData}
+          defaultColDef={{
+            resizable: true,
+            editable: true,
+            sortable: true,
+            minWidth: 100,
+            flex: 0,
+          }}
+          rowSelection="multiple"
+          readOnlyEdit={true}
+          onCellEditRequest={handleCellEditRequest}
+          onColumnResized={handleColumnResized}
+          onSelectionChanged={handleSelectionChanged}
+          rowHeight={40}
+          headerHeight={44}
+          animateRows={true}
+          getRowId={(params) => params.data._rowId}
+          suppressClickEdit={false}
+          suppressRowClickSelection={true}
+        />
+      </div>
+
+      {/* Floating delete bar when rows are selected */}
+      {selectedRowIds.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 bg-[#1a1a2e] border border-white/10 rounded-xl px-4 py-2.5 shadow-2xl shadow-black/50">
+          <span className="text-sm text-gray-300">
+            {selectedRowIds.length} row{selectedRowIds.length > 1 ? 's' : ''} selected
+          </span>
+          <button
+            onClick={handleDeleteSelectedRows}
+            disabled={deleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50"
+          >
+            {deleting ? (
+              <span className="spinner" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            )}
+            Delete
+          </button>
+        </div>
+      )}
     </div>
   );
 }

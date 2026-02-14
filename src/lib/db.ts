@@ -84,4 +84,15 @@ export const db = {
   ): Promise<T[]> {
     return call<T[]>({ action: 'delete', table, match });
   },
+
+  /** Delete a column and all its cell values */
+  deleteColumn(columnId: string): Promise<{ deleted: boolean }> {
+    return call<{ deleted: boolean }>({ action: 'delete_column', columnId });
+  },
+
+  /** Delete rows and all their cell values */
+  deleteRows(rowIds: string[]): Promise<{ deleted: number }> {
+    if (rowIds.length === 0) return Promise.resolve({ deleted: 0 });
+    return call<{ deleted: number }>({ action: 'delete_rows', rowIds });
+  },
 };
