@@ -10,6 +10,7 @@ import CsvUploadModal from '@/components/CsvUploadModal';
 import AddColumnModal from '@/components/AddColumnModal';
 import AiColumnModal from '@/components/AiColumnModal';
 import RunAiColumnModal from '@/components/RunAiColumnModal';
+import ColumnSettingsModal from '@/components/ColumnSettingsModal';
 
 export default function Home() {
   return (
@@ -27,11 +28,17 @@ function AppShell() {
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [aiColumnOpen, setAiColumnOpen] = useState(false);
   const [runAiColumnId, setRunAiColumnId] = useState<string | null>(null);
+  const [settingsColumnId, setSettingsColumnId] = useState<string | null>(null);
 
   const runAiColumn = columns.find((c) => c.id === runAiColumnId && c.is_ai_column) ?? null;
+  const settingsColumn = columns.find((c) => c.id === settingsColumnId) ?? null;
 
   const handleRunAiColumn = useCallback((columnId: string) => {
     setRunAiColumnId(columnId);
+  }, []);
+
+  const handleOpenColumnSettings = useCallback((columnId: string) => {
+    setSettingsColumnId(columnId);
   }, []);
 
   return (
@@ -50,7 +57,7 @@ function AppShell() {
         {/* Grid area — needs explicit height for AG Grid */}
         <div className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0">
-            <DataGrid onRunAiColumn={handleRunAiColumn} />
+            <DataGrid onRunAiColumn={handleRunAiColumn} onOpenColumnSettings={handleOpenColumnSettings} />
           </div>
         </div>
       </div>
@@ -63,6 +70,11 @@ function AppShell() {
         open={runAiColumnId !== null}
         onClose={() => setRunAiColumnId(null)}
         column={runAiColumn}
+      />
+      <ColumnSettingsModal
+        open={settingsColumnId !== null}
+        onClose={() => setSettingsColumnId(null)}
+        column={settingsColumn}
       />
     </div>
   );

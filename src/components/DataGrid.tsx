@@ -47,10 +47,10 @@ function BooleanRenderer(params: ICellRendererParams) {
   return <span className="text-gray-400">{params.value ?? ''}</span>;
 }
 
-// ── Custom column header with sort indicator + run button (AI) + delete button ──
+// ── Custom column header with sort indicator + run button (AI) + settings button ──
 function ColumnHeader(
   params: IHeaderParams & {
-    onDeleteColumn: (colId: string) => void;
+    onOpenSettings: (colId: string) => void;
     onRunAiColumn?: (colId: string) => void;
   },
 ) {
@@ -70,9 +70,9 @@ function ColumnHeader(
     params.onRunAiColumn?.(colId);
   };
 
-  const onDelete = (e: React.MouseEvent) => {
+  const onSettings = (e: React.MouseEvent) => {
     e.stopPropagation();
-    params.onDeleteColumn(colId);
+    params.onOpenSettings(colId);
   };
 
   return (
@@ -87,25 +87,28 @@ function ColumnHeader(
         {sortState === 'asc' && <span className="text-gray-400 ml-0.5">▲</span>}
         {sortState === 'desc' && <span className="text-gray-400 ml-0.5">▼</span>}
       </div>
-      {/* Run button for AI columns */}
+      {/* Run button for AI columns — always visible with accent style */}
       {isAi && (
         <button
           onClick={onRun}
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-accent hover:text-accent transition-all flex-shrink-0 ml-0.5"
+          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-accent/15 text-accent hover:bg-accent/25 transition-all flex-shrink-0 ml-1 text-[11px] font-semibold"
           title="Run AI enrichment"
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
           </svg>
+          Run
         </button>
       )}
+      {/* Settings gear icon */}
       <button
-        onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-gray-500 hover:text-red-400 transition-all flex-shrink-0 ml-0.5"
-        title="Delete column"
+        onClick={onSettings}
+        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-all flex-shrink-0 ml-0.5"
+        title="Column settings"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       </button>
     </div>
@@ -124,15 +127,15 @@ function SpinnerRenderer() {
 
 interface DataGridProps {
   onRunAiColumn?: (columnId: string) => void;
+  onOpenColumnSettings?: (columnId: string) => void;
 }
 
-export default function DataGrid({ onRunAiColumn }: DataGridProps) {
+export default function DataGrid({ onRunAiColumn, onOpenColumnSettings }: DataGridProps) {
   const {
     columns,
     gridRows,
     upsertCellValue,
     updateColumnWidth,
-    deleteColumn,
     deleteRows,
     activeWorkspace,
     loading,
@@ -200,23 +203,6 @@ export default function DataGrid({ onRunAiColumn }: DataGridProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [performUndo, performRedo]);
 
-  // ── Delete column handler (passed into header component) ──
-  const handleDeleteColumn = useCallback(
-    async (colId: string) => {
-      const col = columns.find((c) => c.id === colId);
-      if (!col) return;
-      const confirmed = window.confirm(`Delete column "${col.name}"? This will remove all data in this column.`);
-      if (!confirmed) return;
-      try {
-        await deleteColumn(colId);
-        toast(`Column "${col.name}" deleted`, 'success');
-      } catch {
-        toast('Failed to delete column', 'error');
-      }
-    },
-    [columns, deleteColumn, toast],
-  );
-
   // ── Delete selected rows handler ──
   const handleDeleteSelectedRows = useCallback(async () => {
     if (selectedRowIds.length === 0) return;
@@ -250,7 +236,7 @@ export default function DataGrid({ onRunAiColumn }: DataGridProps) {
         headerComponent: ColumnHeader,
         headerComponentParams: {
           isAi: col.is_ai_column,
-          onDeleteColumn: handleDeleteColumn,
+          onOpenSettings: onOpenColumnSettings,
           onRunAiColumn,
         },
       };
@@ -279,7 +265,7 @@ export default function DataGrid({ onRunAiColumn }: DataGridProps) {
     };
 
     return [checkboxCol, ...dataCols];
-  }, [columns, handleDeleteColumn, onRunAiColumn]);
+  }, [columns, onOpenColumnSettings, onRunAiColumn]);
 
   // ── Row Data ──
   const rowData: GridRow[] = useMemo(() => gridRows, [gridRows]);
