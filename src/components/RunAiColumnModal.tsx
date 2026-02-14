@@ -7,16 +7,21 @@ import { useToast } from '@/components/Toast';
 import { AI_MODELS } from '@/lib/types';
 import type { AiEnrichRequest, AiModel, ColumnDefinition } from '@/lib/types';
 
+type RunMode = 'selected' | 'top_n';
+
 interface RunAiColumnModalProps {
   open: boolean;
   onClose: () => void;
   column: ColumnDefinition | null;
+  selectedRowIds?: string[];
 }
 
-export default function RunAiColumnModal({ open, onClose, column }: RunAiColumnModalProps) {
+export default function RunAiColumnModal({ open, onClose, column, selectedRowIds = [] }: RunAiColumnModalProps) {
   const { columns, gridRows, activeWorkspace, refreshData } = useWorkspace();
   const { toast } = useToast();
 
+  const hasSelection = selectedRowIds.length > 0;
+  const [runMode, setRunMode] = useState<RunMode>('top_n');
   const [rowCount, setRowCount] = useState<number>(0);
   const [model, setModel] = useState<AiModel>('sonar');
   const [skipExisting, setSkipExisting] = useState(true);
@@ -33,23 +38,34 @@ export default function RunAiColumnModal({ open, onClose, column }: RunAiColumnM
       setSkipExisting(true);
       setRunning(false);
       setProgress({ done: 0, total: 0 });
+      // Default to selected mode when rows are checked
+      setRunMode(selectedRowIds.length > 0 ? 'selected' : 'top_n');
     }
-  }, [open, column, totalRows]);
+  }, [open, column, totalRows, selectedRowIds.length]);
 
   // Determine which rows to process
   const getRowsToRun = () => {
     if (!column) return [];
-    const subset = gridRows.slice(0, rowCount);
+
+    let pool;
+    if (runMode === 'selected') {
+      const idSet = new Set(selectedRowIds);
+      pool = gridRows.filter((row) => idSet.has(row._rowId));
+    } else {
+      pool = gridRows.slice(0, rowCount);
+    }
+
     if (skipExisting) {
-      return subset.filter((row) => {
+      return pool.filter((row) => {
         const val = row[column.id];
         return val === undefined || val === null || val === '';
       });
     }
-    return subset;
+    return pool;
   };
 
   const rowsToRun = column ? getRowsToRun() : [];
+  const poolSize = runMode === 'selected' ? selectedRowIds.length : rowCount;
 
   const handleRun = async () => {
     if (!column || !activeWorkspace || rowsToRun.length === 0) return;
@@ -131,36 +147,69 @@ export default function RunAiColumnModal({ open, onClose, column }: RunAiColumnM
           <p className="text-sm text-gray-300">{column.ai_prompt}</p>
         </div>
 
-        {/* Row count */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Rows to run <span className="text-gray-500 font-normal">(starting from top)</span>
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min={1}
-              max={totalRows}
-              value={rowCount}
-              onChange={(e) => setRowCount(Number(e.target.value))}
-              className="flex-1 accent-accent h-1.5 cursor-pointer"
-              disabled={running}
-            />
-            <input
-              type="number"
-              min={1}
-              max={totalRows}
-              value={rowCount}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (v >= 1 && v <= totalRows) setRowCount(v);
-              }}
-              className="w-20 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-200 text-center focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
-              disabled={running}
-            />
-            <span className="text-xs text-gray-500">/ {totalRows}</span>
+        {/* Run mode: selected rows vs top N */}
+        {hasSelection && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Run on</label>
+            <div className="flex gap-1 bg-white/5 p-1 rounded-lg">
+              <button
+                onClick={() => setRunMode('selected')}
+                disabled={running}
+                className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                  ${runMode === 'selected'
+                    ? 'bg-white/10 text-gray-200 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-300'
+                  } disabled:cursor-not-allowed`}
+              >
+                Selected rows ({selectedRowIds.length})
+              </button>
+              <button
+                onClick={() => setRunMode('top_n')}
+                disabled={running}
+                className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                  ${runMode === 'top_n'
+                    ? 'bg-white/10 text-gray-200 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-300'
+                  } disabled:cursor-not-allowed`}
+              >
+                Rows from top
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Row count slider — only for top_n mode */}
+        {runMode === 'top_n' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Rows to run <span className="text-gray-500 font-normal">(starting from top)</span>
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={1}
+                max={totalRows}
+                value={rowCount}
+                onChange={(e) => setRowCount(Number(e.target.value))}
+                className="flex-1 accent-accent h-1.5 cursor-pointer"
+                disabled={running}
+              />
+              <input
+                type="number"
+                min={1}
+                max={totalRows}
+                value={rowCount}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (v >= 1 && v <= totalRows) setRowCount(v);
+                }}
+                className="w-20 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-200 text-center focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                disabled={running}
+              />
+              <span className="text-xs text-gray-500">/ {totalRows}</span>
+            </div>
+          </div>
+        )}
 
         {/* Model selection */}
         <div>
@@ -214,9 +263,9 @@ export default function RunAiColumnModal({ open, onClose, column }: RunAiColumnM
           <span className="text-sm text-gray-400">Rows to process:</span>
           <span className="text-sm font-semibold text-gray-200">
             {rowsToRun.length} row{rowsToRun.length !== 1 ? 's' : ''}
-            {skipExisting && rowsToRun.length < rowCount && (
+            {skipExisting && rowsToRun.length < poolSize && (
               <span className="text-gray-500 font-normal ml-1">
-                ({rowCount - rowsToRun.length} skipped)
+                ({poolSize - rowsToRun.length} skipped)
               </span>
             )}
           </span>

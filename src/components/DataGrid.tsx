@@ -126,7 +126,7 @@ function SpinnerRenderer() {
 }
 
 interface DataGridProps {
-  onRunAiColumn?: (columnId: string) => void;
+  onRunAiColumn?: (columnId: string, selectedRowIds: string[]) => void;
   onOpenColumnSettings?: (columnId: string) => void;
 }
 
@@ -143,6 +143,7 @@ export default function DataGrid({ onRunAiColumn, onOpenColumnSettings }: DataGr
   const { toast } = useToast();
   const gridRef = useRef<AgGridReact>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const selectedRowIdsRef = useRef<string[]>([]);
   const [deleting, setDeleting] = useState(false);
 
   // ── Custom undo/redo stacks ──
@@ -221,6 +222,14 @@ export default function DataGrid({ onRunAiColumn, onOpenColumnSettings }: DataGr
     setDeleting(false);
   }, [selectedRowIds, deleteRows, toast]);
 
+  // Stable wrapper that captures current selection at call time
+  const handleRunAiColumnWithSelection = useCallback(
+    (colId: string) => {
+      onRunAiColumn?.(colId, selectedRowIdsRef.current);
+    },
+    [onRunAiColumn],
+  );
+
   // ── Column Definitions ──
   const columnDefs: ColDef[] = useMemo(() => {
     const dataCols: ColDef[] = columns.map((col) => {
@@ -237,7 +246,7 @@ export default function DataGrid({ onRunAiColumn, onOpenColumnSettings }: DataGr
         headerComponentParams: {
           isAi: col.is_ai_column,
           onOpenSettings: onOpenColumnSettings,
-          onRunAiColumn,
+          onRunAiColumn: handleRunAiColumnWithSelection,
         },
       };
 
@@ -265,7 +274,7 @@ export default function DataGrid({ onRunAiColumn, onOpenColumnSettings }: DataGr
     };
 
     return [checkboxCol, ...dataCols];
-  }, [columns, onOpenColumnSettings, onRunAiColumn]);
+  }, [columns, onOpenColumnSettings, handleRunAiColumnWithSelection]);
 
   // ── Row Data ──
   const rowData: GridRow[] = useMemo(() => gridRows, [gridRows]);
@@ -274,7 +283,9 @@ export default function DataGrid({ onRunAiColumn, onOpenColumnSettings }: DataGr
   const handleSelectionChanged = useCallback(
     (event: SelectionChangedEvent) => {
       const selected = event.api.getSelectedRows() as GridRow[];
-      setSelectedRowIds(selected.map((r) => r._rowId));
+      const ids = selected.map((r) => r._rowId);
+      setSelectedRowIds(ids);
+      selectedRowIdsRef.current = ids;
     },
     [],
   );

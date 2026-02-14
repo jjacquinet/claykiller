@@ -28,13 +28,15 @@ function AppShell() {
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [aiColumnOpen, setAiColumnOpen] = useState(false);
   const [runAiColumnId, setRunAiColumnId] = useState<string | null>(null);
+  const [runAiSelectedRowIds, setRunAiSelectedRowIds] = useState<string[]>([]);
   const [settingsColumnId, setSettingsColumnId] = useState<string | null>(null);
 
   const runAiColumn = columns.find((c) => c.id === runAiColumnId && c.is_ai_column) ?? null;
   const settingsColumn = columns.find((c) => c.id === settingsColumnId) ?? null;
 
-  const handleRunAiColumn = useCallback((columnId: string) => {
+  const handleRunAiColumn = useCallback((columnId: string, selectedRowIds: string[]) => {
     setRunAiColumnId(columnId);
+    setRunAiSelectedRowIds(selectedRowIds);
   }, []);
 
   const handleOpenColumnSettings = useCallback((columnId: string) => {
@@ -68,8 +70,9 @@ function AppShell() {
       <AiColumnModal open={aiColumnOpen} onClose={() => setAiColumnOpen(false)} />
       <RunAiColumnModal
         open={runAiColumnId !== null}
-        onClose={() => setRunAiColumnId(null)}
+        onClose={() => { setRunAiColumnId(null); setRunAiSelectedRowIds([]); }}
         column={runAiColumn}
+        selectedRowIds={runAiSelectedRowIds}
       />
       <ColumnSettingsModal
         open={settingsColumnId !== null}
