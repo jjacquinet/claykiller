@@ -17,6 +17,7 @@ export interface ColumnDefinition {
   id: string;
   workspace_id: string;
   name: string;
+  field_key: string;
   position: number;
   width: number;
   is_ai_column: boolean;
@@ -28,6 +29,7 @@ export interface ColumnDefinition {
 export interface Row {
   id: string;
   workspace_id: string;
+  position: number;
   created_at: string;
 }
 
@@ -65,8 +67,32 @@ export interface AiEnrichResponse {
   error?: string;
 }
 
-/** Default columns per table type */
-export const DEFAULT_COLUMNS: Record<TableType, string[]> = {
-  people: ['First Name', 'Last Name', 'Email', 'Company', 'Title', 'LinkedIn URL'],
-  companies: ['Company Name', 'Website', 'Industry', 'Employee Count', 'Location', 'Description'],
+/** Helper to generate a snake_case field_key from a column name */
+export function toFieldKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+}
+
+/** Default columns per table type: [display name, field_key] */
+export interface DefaultColumn {
+  name: string;
+  field_key: string;
+}
+
+export const DEFAULT_COLUMNS: Record<TableType, DefaultColumn[]> = {
+  people: [
+    { name: 'First Name', field_key: 'first_name' },
+    { name: 'Last Name', field_key: 'last_name' },
+    { name: 'Email', field_key: 'email' },
+    { name: 'LinkedIn URL', field_key: 'linkedin_url' },
+    { name: 'Company Name', field_key: 'company_name' },
+    { name: 'Title', field_key: 'title' },
+    { name: 'Company Website', field_key: 'company_website' },
+  ],
+  companies: [
+    { name: 'Company Name', field_key: 'company_name' },
+    { name: 'Company Website', field_key: 'company_website' },
+  ],
 };

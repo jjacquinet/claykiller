@@ -18,7 +18,7 @@ import type {
   TableType,
   Workspace,
 } from '@/lib/types';
-import { DEFAULT_COLUMNS } from '@/lib/types';
+import { DEFAULT_COLUMNS, toFieldKey } from '@/lib/types';
 
 // ============================================================
 // Context types
@@ -174,9 +174,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
         // Create default columns
         const defaultCols = DEFAULT_COLUMNS[tableType];
-        const colInserts = defaultCols.map((name, i) => ({
+        const colInserts = defaultCols.map((col, i) => ({
           workspace_id: ws.id,
-          name,
+          name: col.name,
+          field_key: col.field_key,
           position: i,
           width: 200,
           is_ai_column: false,
@@ -216,6 +217,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const col = await db.insertOne<ColumnDefinition>('column_definitions', {
           workspace_id: activeWorkspaceId,
           name,
+          field_key: toFieldKey(name),
           position: maxPos + 1,
           width: 200,
           is_ai_column: false,
@@ -242,6 +244,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const col = await db.insertOne<ColumnDefinition>('column_definitions', {
           workspace_id: activeWorkspaceId,
           name,
+          field_key: toFieldKey(name),
           position: maxPos + 1,
           width: 200,
           is_ai_column: true,
