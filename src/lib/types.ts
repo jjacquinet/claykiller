@@ -51,6 +51,15 @@ export interface GridRow {
   [columnId: string]: string | undefined;
 }
 
+/** Available AI models */
+export type AiModel = 'sonar' | 'sonar-pro' | 'claude-sonnet';
+
+export const AI_MODELS: { id: AiModel; label: string }[] = [
+  { id: 'sonar', label: 'Perplexity Sonar' },
+  { id: 'sonar-pro', label: 'Perplexity Sonar Pro' },
+  { id: 'claude-sonnet', label: 'Claude Sonnet' },
+];
+
 /** AI enrichment request payload */
 export interface AiEnrichRequest {
   columnId: string;
@@ -59,6 +68,7 @@ export interface AiEnrichRequest {
   outputType: OutputType;
   rowContext: Record<string, string>;
   tableType: TableType;
+  model?: AiModel;
 }
 
 /** AI enrichment response */

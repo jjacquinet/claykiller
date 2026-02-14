@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { WorkspaceProvider } from '@/lib/workspace-context';
+import { useCallback, useState } from 'react';
+import { WorkspaceProvider, useWorkspace } from '@/lib/workspace-context';
 import { ToastProvider } from '@/components/Toast';
 import Sidebar from '@/components/Sidebar';
 import Toolbar from '@/components/Toolbar';
@@ -9,6 +9,7 @@ import DataGrid from '@/components/DataGrid';
 import CsvUploadModal from '@/components/CsvUploadModal';
 import AddColumnModal from '@/components/AddColumnModal';
 import AiColumnModal from '@/components/AiColumnModal';
+import RunAiColumnModal from '@/components/RunAiColumnModal';
 
 export default function Home() {
   return (
@@ -21,9 +22,17 @@ export default function Home() {
 }
 
 function AppShell() {
+  const { columns } = useWorkspace();
   const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [aiColumnOpen, setAiColumnOpen] = useState(false);
+  const [runAiColumnId, setRunAiColumnId] = useState<string | null>(null);
+
+  const runAiColumn = columns.find((c) => c.id === runAiColumnId && c.is_ai_column) ?? null;
+
+  const handleRunAiColumn = useCallback((columnId: string) => {
+    setRunAiColumnId(columnId);
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -41,7 +50,7 @@ function AppShell() {
         {/* Grid area — needs explicit height for AG Grid */}
         <div className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0">
-            <DataGrid />
+            <DataGrid onRunAiColumn={handleRunAiColumn} />
           </div>
         </div>
       </div>
@@ -50,6 +59,11 @@ function AppShell() {
       <CsvUploadModal open={csvModalOpen} onClose={() => setCsvModalOpen(false)} />
       <AddColumnModal open={addColumnOpen} onClose={() => setAddColumnOpen(false)} />
       <AiColumnModal open={aiColumnOpen} onClose={() => setAiColumnOpen(false)} />
+      <RunAiColumnModal
+        open={runAiColumnId !== null}
+        onClose={() => setRunAiColumnId(null)}
+        column={runAiColumn}
+      />
     </div>
   );
 }

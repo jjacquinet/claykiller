@@ -47,17 +47,27 @@ function BooleanRenderer(params: ICellRendererParams) {
   return <span className="text-gray-400">{params.value ?? ''}</span>;
 }
 
-// ── Custom column header with sort indicator + delete button ──
-function ColumnHeader(params: IHeaderParams & { onDeleteColumn: (colId: string) => void }) {
-  const isAi = params.column.getColDef().headerComponentParams?.isAi;
+// ── Custom column header with sort indicator + run button (AI) + delete button ──
+function ColumnHeader(
+  params: IHeaderParams & {
+    onDeleteColumn: (colId: string) => void;
+    onRunAiColumn?: (colId: string) => void;
+  },
+) {
+  const colDef = params.column.getColDef();
+  const isAi = colDef.headerComponentParams?.isAi;
   const colId = params.column.getColId();
   const [sortState, setSortState] = useState<'asc' | 'desc' | null>(null);
 
   const onSortClicked = (e: React.MouseEvent) => {
-    // Cycle: none -> asc -> desc -> none
     const next = sortState === null ? 'asc' : sortState === 'asc' ? 'desc' : null;
     setSortState(next);
     params.setSort(next, e.shiftKey);
+  };
+
+  const onRun = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    params.onRunAiColumn?.(colId);
   };
 
   const onDelete = (e: React.MouseEvent) => {
@@ -77,9 +87,21 @@ function ColumnHeader(params: IHeaderParams & { onDeleteColumn: (colId: string) 
         {sortState === 'asc' && <span className="text-gray-400 ml-0.5">▲</span>}
         {sortState === 'desc' && <span className="text-gray-400 ml-0.5">▼</span>}
       </div>
+      {/* Run button for AI columns */}
+      {isAi && (
+        <button
+          onClick={onRun}
+          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-accent hover:text-accent transition-all flex-shrink-0 ml-0.5"
+          title="Run AI enrichment"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          </svg>
+        </button>
+      )}
       <button
         onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-gray-500 hover:text-red-400 transition-all flex-shrink-0 ml-1"
+        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-gray-500 hover:text-red-400 transition-all flex-shrink-0 ml-0.5"
         title="Delete column"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -100,7 +122,11 @@ function SpinnerRenderer() {
   );
 }
 
-export default function DataGrid() {
+interface DataGridProps {
+  onRunAiColumn?: (columnId: string) => void;
+}
+
+export default function DataGrid({ onRunAiColumn }: DataGridProps) {
   const {
     columns,
     gridRows,
@@ -225,6 +251,7 @@ export default function DataGrid() {
         headerComponentParams: {
           isAi: col.is_ai_column,
           onDeleteColumn: handleDeleteColumn,
+          onRunAiColumn,
         },
       };
 
@@ -252,7 +279,7 @@ export default function DataGrid() {
     };
 
     return [checkboxCol, ...dataCols];
-  }, [columns, handleDeleteColumn]);
+  }, [columns, handleDeleteColumn, onRunAiColumn]);
 
   // ── Row Data ──
   const rowData: GridRow[] = useMemo(() => gridRows, [gridRows]);
