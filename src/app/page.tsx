@@ -26,7 +26,7 @@ function AppShell() {
   const [aiColumnOpen, setAiColumnOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
       <Sidebar />
 

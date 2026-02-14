@@ -120,42 +120,42 @@ export default function AiColumnModal({ open, onClose }: AiColumnModalProps) {
       <div className="space-y-4">
         {/* Column Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Column Name</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Column Name</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., Industry"
-            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
             autoFocus
           />
         </div>
 
         {/* Prompt */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Prompt</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Prompt</label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g., Based on the company name and website, determine what industry this company is in"
             rows={3}
-            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent resize-none"
+            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent resize-none"
           />
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             The AI will have access to all other column values for each row as context.
           </p>
         </div>
 
         {/* Output Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Output Type</label>
-          <div className="flex gap-1 bg-gray-50 p-1 rounded-lg">
+          <label className="block text-sm font-medium text-gray-300 mb-2">Output Type</label>
+          <div className="flex gap-1 bg-white/5 p-1 rounded-lg">
             {(['text', 'number', 'boolean'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setOutputType(t)}
                 className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize
-                  ${outputType === t ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  ${outputType === t ? 'bg-white/10 text-gray-200 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
               >
                 {t === 'boolean' ? 'True / False' : t}
               </button>
@@ -165,17 +165,17 @@ export default function AiColumnModal({ open, onClose }: AiColumnModalProps) {
 
         {/* Enrichment Progress */}
         {enriching && (
-          <div className="space-y-2 bg-accent/5 rounded-lg p-3">
+          <div className="space-y-2 bg-accent/10 rounded-lg p-3">
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-2 text-accent font-medium">
                 <span className="spinner" />
                 Enriching…
               </span>
-              <span className="text-gray-500 text-xs">
+              <span className="text-gray-400 text-xs">
                 {enrichProgress.done}/{enrichProgress.total} rows
               </span>
             </div>
-            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
               <div
                 className="h-full bg-accent rounded-full transition-all duration-300"
                 style={{
@@ -191,14 +191,14 @@ export default function AiColumnModal({ open, onClose }: AiColumnModalProps) {
           <button
             onClick={handleClose}
             disabled={creating || enriching}
-            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={() => handleCreate(false)}
             disabled={!name.trim() || !prompt.trim() || creating || enriching}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium text-gray-300 bg-white/10 hover:bg-white/15 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Create
           </button>

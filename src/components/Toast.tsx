@@ -42,9 +42,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={`toast-enter flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium shadow-lg cursor-pointer
-              ${t.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : ''}
-              ${t.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : ''}
-              ${t.type === 'info' ? 'bg-white text-gray-800 border border-gray-200' : ''}
+              ${t.type === 'success' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : ''}
+              ${t.type === 'error' ? 'bg-red-950 text-red-300 border border-red-800' : ''}
+              ${t.type === 'info' ? 'bg-gray-900 text-gray-200 border border-gray-700' : ''}
             `}
             onClick={() => removeToast(t.id)}
           >

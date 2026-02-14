@@ -40,7 +40,7 @@ export default function AddColumnModal({ open, onClose }: AddColumnModalProps) {
     <Modal open={open} onClose={handleClose} title="Add Column">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Column Name</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Column Name</label>
           <input
             type="text"
             value={name}
@@ -49,14 +49,14 @@ export default function AddColumnModal({ open, onClose }: AddColumnModalProps) {
               if (e.key === 'Enter') handleSubmit();
             }}
             placeholder="e.g., Phone Number"
-            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
             autoFocus
           />
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 rounded-lg hover:bg-white/5 transition-colors"
           >
             Cancel
           </button>

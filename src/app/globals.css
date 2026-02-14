@@ -5,16 +5,18 @@
 @import "@ag-grid-community/styles/ag-theme-quartz.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #111827;
+  --background: #0a0a0a;
+  --foreground: #e5e7eb;
   --sidebar-bg: #111827;
   --sidebar-text: #e5e7eb;
-  --border: #e5e7eb;
+  --border: #1f2937;
   --accent: #6366f1;
   --accent-hover: #4f46e5;
   --muted: #6b7280;
   --success: #22c55e;
   --danger: #ef4444;
+  --surface: #111111;
+  --surface-hover: #1a1a1a;
 }
 
 @theme inline {
@@ -28,6 +30,8 @@
   --color-muted: var(--muted);
   --color-success: var(--success);
   --color-danger: var(--danger);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
 }
 
 body {
@@ -38,32 +42,40 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── AG Grid Overrides for clean modern look ── */
-.ag-theme-quartz {
+/* ── AG Grid Dark Theme Overrides ── */
+.ag-theme-quartz-dark {
   --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
   --ag-font-size: 13px;
-  --ag-background-color: #ffffff;
-  --ag-header-background-color: #f9fafb;
-  --ag-header-foreground-color: #374151;
-  --ag-header-cell-hover-background-color: #f3f4f6;
-  --ag-border-color: #e5e7eb;
-  --ag-row-border-color: #f3f4f6;
-  --ag-selected-row-background-color: #eef2ff;
-  --ag-range-selection-background-color: #e0e7ff;
-  --ag-row-hover-color: #f9fafb;
+  --ag-background-color: #0a0a0a;
+  --ag-header-background-color: #111111;
+  --ag-header-foreground-color: #9ca3af;
+  --ag-header-cell-hover-background-color: #1a1a1a;
+  --ag-border-color: #1f2937;
+  --ag-row-border-color: #151515;
+  --ag-selected-row-background-color: rgba(99, 102, 241, 0.15);
+  --ag-range-selection-background-color: rgba(99, 102, 241, 0.2);
+  --ag-row-hover-color: #111111;
   --ag-cell-horizontal-padding: 12px;
   --ag-header-height: 44px;
   --ag-row-height: 40px;
+  --ag-foreground-color: #d1d5db;
+  --ag-secondary-foreground-color: #9ca3af;
+  --ag-data-color: #d1d5db;
+  --ag-odd-row-background-color: #0d0d0d;
+  --ag-control-panel-background-color: #111111;
+  --ag-checkbox-checked-color: #6366f1;
+  --ag-checkbox-unchecked-color: #374151;
+  --ag-input-focus-border-color: #6366f1;
 }
 
-.ag-theme-quartz .ag-header-cell-label {
+.ag-theme-quartz-dark .ag-header-cell-label {
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
-.ag-theme-quartz .ag-cell {
+.ag-theme-quartz-dark .ag-cell {
   display: flex;
   align-items: center;
   line-height: 1.4;
@@ -72,7 +84,7 @@ body {
 /* ── Modal backdrop ── */
 .modal-backdrop {
   backdrop-filter: blur(4px);
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(0, 0, 0, 0.6);
 }
 
 /* ── Toast animations ── */
@@ -101,7 +113,7 @@ body {
 
 .spinner {
   animation: spin 0.8s linear infinite;
-  border: 2px solid #e5e7eb;
+  border: 2px solid #374151;
   border-top-color: #6366f1;
   border-radius: 50%;
   width: 16px;
@@ -119,10 +131,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: #374151;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #4b5563;
 }

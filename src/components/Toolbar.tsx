@@ -71,7 +71,7 @@ export default function Toolbar({ onUploadCsv, onAddColumn, onAddAiColumn }: Too
             {activeWorkspace.name}
           </button>
         )}
-        <span className="text-xs font-medium text-muted bg-gray-100 px-2 py-0.5 rounded-full capitalize">
+        <span className="text-xs font-medium text-muted bg-white/10 px-2 py-0.5 rounded-full capitalize">
           {activeWorkspace.table_type}
         </span>
       </div>
@@ -110,7 +110,7 @@ function ToolbarButton({
         ${
           accent
             ? 'bg-accent text-white hover:bg-accent-hover shadow-sm'
-            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-border'
+            : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
         }`}
     >
       {icon}

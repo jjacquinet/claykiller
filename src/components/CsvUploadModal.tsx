@@ -224,7 +224,7 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center cursor-pointer
+          className="border-2 border-dashed border-white/10 rounded-xl p-12 text-center cursor-pointer
             hover:border-accent/50 hover:bg-accent/5 transition-colors"
         >
           <input
@@ -250,35 +250,35 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
               d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
             />
           </svg>
-          <p className="text-sm font-medium text-gray-700 mb-1">
+          <p className="text-sm font-medium text-gray-300 mb-1">
             Drop your CSV file here, or click to browse
           </p>
-          <p className="text-xs text-gray-400">Supports .csv files with headers</p>
+          <p className="text-xs text-gray-500">Supports .csv files with headers</p>
         </div>
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">
-              Detected <strong className="text-gray-800">{csvHeaders.length}</strong> columns,{' '}
-              <strong className="text-gray-800">{csvData.length}</strong> rows
+            <span className="text-gray-400">
+              Detected <strong className="text-gray-200">{csvHeaders.length}</strong> columns,{' '}
+              <strong className="text-gray-200">{csvData.length}</strong> rows
             </span>
           </div>
 
-          <div className="border border-border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-2 gap-0 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-border">
+          <div className="border border-white/10 rounded-lg overflow-hidden">
+            <div className="grid grid-cols-2 gap-0 bg-white/5 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-white/10">
               <span>CSV Column</span>
               <span>Map To</span>
             </div>
-            <div className="divide-y divide-border max-h-[400px] overflow-y-auto">
+            <div className="divide-y divide-white/5 max-h-[400px] overflow-y-auto">
               {mappings.map((mapping, idx) => (
                 <div key={idx} className="grid grid-cols-2 gap-4 px-4 py-2.5 items-center">
-                  <span className="text-sm font-medium text-gray-800 truncate">
+                  <span className="text-sm font-medium text-gray-200 truncate">
                     {mapping.csvHeader}
                   </span>
                   <select
                     value={mapping.target}
                     onChange={(e) => updateMapping(idx, e.target.value)}
-                    className="text-sm border border-border rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    className="text-sm border border-white/10 rounded-md px-2 py-1.5 bg-white/5 text-gray-200 focus:outline-none focus:ring-2 focus:ring-accent/30"
                   >
                     <optgroup label="Existing Columns">
                       {columns.map((col) => (
@@ -296,20 +296,20 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
           </div>
 
           {validationError && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+            <div className="text-sm text-red-400 bg-red-950 border border-red-800 rounded-lg px-4 py-2.5">
               {validationError}
             </div>
           )}
 
           {uploading && (
             <div className="space-y-2">
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-gray-400">
                 <span>Importing…</span>
                 <span>
                   {progress}/{csvData.length} rows
                 </span>
               </div>
-              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-accent rounded-full transition-all duration-300"
                   style={{ width: `${(progress / csvData.length) * 100}%` }}
@@ -322,7 +322,7 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
             <button
               onClick={handleClose}
               disabled={uploading}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
