@@ -5,12 +5,11 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { db } from '@/lib/db';
 import type {
   CellValue,
   ColumnDefinition,
@@ -68,7 +67,6 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 // ============================================================
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const supabase = useMemo(() => createClient(), []);
   const widthTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -83,58 +81,44 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   // ── Fetch workspaces on mount ──
   const fetchWorkspaces = useCallback(async () => {
-    const { data } = await supabase
-      .from('workspaces')
-      .select('*')
-      .order('created_at', { ascending: true });
-    if (data) setWorkspaces(data as Workspace[]);
-  }, [supabase]);
+    try {
+      const data = await db.select<Workspace>('workspaces', undefined, {
+        column: 'created_at',
+        ascending: true,
+      });
+      setWorkspaces(data);
+    } catch (err) {
+      console.error('Failed to fetch workspaces:', err);
+    }
+  }, []);
 
   // ── Fetch columns, rows, cells for active workspace ──
-  const fetchWorkspaceData = useCallback(
-    async (workspaceId: string) => {
-      setLoading(true);
-      const [colRes, rowRes] = await Promise.all([
-        supabase
-          .from('column_definitions')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .order('position', { ascending: true }),
-        supabase
-          .from('rows')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .order('created_at', { ascending: true }),
+  const fetchWorkspaceData = useCallback(async (workspaceId: string) => {
+    setLoading(true);
+    try {
+      const [cols, rws] = await Promise.all([
+        db.select<ColumnDefinition>('column_definitions', { workspace_id: workspaceId }),
+        db.select<Row>('rows', { workspace_id: workspaceId }),
       ]);
 
-      const cols = (colRes.data ?? []) as ColumnDefinition[];
-      const rws = (rowRes.data ?? []) as Row[];
+      // Sort columns by position client-side
+      cols.sort((a, b) => a.position - b.position);
       setColumns(cols);
       setRows(rws);
 
-      // Fetch all cell values for these rows
+      // Fetch all cell values for these rows in one batched query
       if (rws.length > 0) {
         const rowIds = rws.map((r) => r.id);
-        // Supabase `in` filter has a limit, batch if needed
-        const batchSize = 500;
-        const allCells: CellValue[] = [];
-        for (let i = 0; i < rowIds.length; i += batchSize) {
-          const batch = rowIds.slice(i, i + batchSize);
-          const { data: cellData } = await supabase
-            .from('cell_values')
-            .select('*')
-            .in('row_id', batch);
-          if (cellData) allCells.push(...(cellData as CellValue[]));
-        }
+        const allCells = await db.selectIn<CellValue>('cell_values', 'row_id', rowIds);
         setCellValues(allCells);
       } else {
         setCellValues([]);
       }
-
-      setLoading(false);
-    },
-    [supabase],
-  );
+    } catch (err) {
+      console.error('Failed to fetch workspace data:', err);
+    }
+    setLoading(false);
+  }, []);
 
   // ── Initial load ──
   useEffect(() => {
@@ -182,65 +166,68 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const createWorkspace = useCallback(
     async (tableType: TableType) => {
-      const { data, error } = await supabase
-        .from('workspaces')
-        .insert({ name: 'Untitled', table_type: tableType })
-        .select()
-        .single();
-      if (error || !data) return;
+      try {
+        const ws = await db.insertOne<Workspace>('workspaces', {
+          name: 'Untitled',
+          table_type: tableType,
+        });
 
-      const ws = data as Workspace;
+        // Create default columns
+        const defaultCols = DEFAULT_COLUMNS[tableType];
+        const colInserts = defaultCols.map((name, i) => ({
+          workspace_id: ws.id,
+          name,
+          position: i,
+          width: 200,
+          is_ai_column: false,
+        }));
+        await db.insert('column_definitions', colInserts);
 
-      // Create default columns
-      const defaultCols = DEFAULT_COLUMNS[tableType];
-      const colInserts = defaultCols.map((name, i) => ({
-        workspace_id: ws.id,
-        name,
-        position: i,
-        width: 200,
-        is_ai_column: false,
-      }));
-      await supabase.from('column_definitions').insert(colInserts);
-
-      await fetchWorkspaces();
-      setActiveTab(tableType);
-      setActiveWorkspaceId(ws.id);
+        await fetchWorkspaces();
+        setActiveTab(tableType);
+        setActiveWorkspaceId(ws.id);
+      } catch (err) {
+        console.error('Failed to create workspace:', err);
+      }
     },
-    [supabase, fetchWorkspaces],
+    [fetchWorkspaces],
   );
 
   const renameWorkspace = useCallback(
     async (id: string, name: string) => {
-      await supabase.from('workspaces').update({ name }).eq('id', id);
-      setWorkspaces((prev) =>
-        prev.map((w) => (w.id === id ? { ...w, name } : w)),
-      );
+      try {
+        await db.update('workspaces', { name }, { id });
+        setWorkspaces((prev) =>
+          prev.map((w) => (w.id === id ? { ...w, name } : w)),
+        );
+      } catch (err) {
+        console.error('Failed to rename workspace:', err);
+      }
     },
-    [supabase],
+    [],
   );
 
   // ── Column actions ──
   const addColumn = useCallback(
     async (name: string): Promise<ColumnDefinition | null> => {
       if (!activeWorkspaceId) return null;
-      const maxPos = columns.reduce((max, c) => Math.max(max, c.position), -1);
-      const { data, error } = await supabase
-        .from('column_definitions')
-        .insert({
+      try {
+        const maxPos = columns.reduce((max, c) => Math.max(max, c.position), -1);
+        const col = await db.insertOne<ColumnDefinition>('column_definitions', {
           workspace_id: activeWorkspaceId,
           name,
           position: maxPos + 1,
           width: 200,
           is_ai_column: false,
-        })
-        .select()
-        .single();
-      if (error || !data) return null;
-      const col = data as ColumnDefinition;
-      setColumns((prev) => [...prev, col]);
-      return col;
+        });
+        setColumns((prev) => [...prev, col]);
+        return col;
+      } catch (err) {
+        console.error('Failed to add column:', err);
+        return null;
+      }
     },
-    [activeWorkspaceId, columns, supabase],
+    [activeWorkspaceId, columns],
   );
 
   const addAiColumn = useCallback(
@@ -250,10 +237,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       outputType: 'text' | 'number' | 'boolean',
     ): Promise<ColumnDefinition | null> => {
       if (!activeWorkspaceId) return null;
-      const maxPos = columns.reduce((max, c) => Math.max(max, c.position), -1);
-      const { data, error } = await supabase
-        .from('column_definitions')
-        .insert({
+      try {
+        const maxPos = columns.reduce((max, c) => Math.max(max, c.position), -1);
+        const col = await db.insertOne<ColumnDefinition>('column_definitions', {
           workspace_id: activeWorkspaceId,
           name,
           position: maxPos + 1,
@@ -261,62 +247,60 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           is_ai_column: true,
           ai_prompt: prompt,
           output_type: outputType,
-        })
-        .select()
-        .single();
-      if (error || !data) return null;
-      const col = data as ColumnDefinition;
-      setColumns((prev) => [...prev, col]);
-      return col;
+        });
+        setColumns((prev) => [...prev, col]);
+        return col;
+      } catch (err) {
+        console.error('Failed to add AI column:', err);
+        return null;
+      }
     },
-    [activeWorkspaceId, columns, supabase],
+    [activeWorkspaceId, columns],
   );
 
   // Debounced column width update
   const updateColumnWidth = useCallback(
     (columnId: string, width: number) => {
-      // Update local state immediately
       setColumns((prev) =>
         prev.map((c) => (c.id === columnId ? { ...c, width } : c)),
       );
-      // Debounce the Supabase write
       const timers = widthTimersRef.current;
       const existing = timers.get(columnId);
       if (existing) clearTimeout(existing);
       const timer = setTimeout(async () => {
-        await supabase
-          .from('column_definitions')
-          .update({ width })
-          .eq('id', columnId);
+        try {
+          await db.update('column_definitions', { width }, { id: columnId });
+        } catch (err) {
+          console.error('Failed to update column width:', err);
+        }
         timers.delete(columnId);
       }, 300);
       timers.set(columnId, timer);
     },
-    [supabase],
+    [],
   );
 
   // ── Row actions ──
   const addRow = useCallback(async () => {
     if (!activeWorkspaceId) return;
-    const { data, error } = await supabase
-      .from('rows')
-      .insert({ workspace_id: activeWorkspaceId })
-      .select()
-      .single();
-    if (error || !data) return;
-    const newRow = data as Row;
-    setRows((prev) => [...prev, newRow]);
-  }, [activeWorkspaceId, supabase]);
+    try {
+      const newRow = await db.insertOne<Row>('rows', {
+        workspace_id: activeWorkspaceId,
+      });
+      setRows((prev) => [...prev, newRow]);
+    } catch (err) {
+      console.error('Failed to add row:', err);
+    }
+  }, [activeWorkspaceId]);
 
   // ── Cell actions ──
   const upsertCellValue = useCallback(
     async (rowId: string, columnId: string, value: string) => {
-      const { error } = await supabase.from('cell_values').upsert(
+      await db.upsert(
+        'cell_values',
         { row_id: rowId, column_id: columnId, value },
-        { onConflict: 'row_id,column_id' },
+        'row_id,column_id',
       );
-      if (error) throw error;
-      // Update local state
       setCellValues((prev) => {
         const idx = prev.findIndex(
           (cv) => cv.row_id === rowId && cv.column_id === columnId,
@@ -332,7 +316,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         ];
       });
     },
-    [supabase],
+    [],
   );
 
   const bulkInsertRows = useCallback(
@@ -348,11 +332,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
         // Insert rows
         const rowInserts = batch.map(() => ({ workspace_id: activeWorkspaceId }));
-        const { data: newRows, error: rowErr } = await supabase
-          .from('rows')
-          .insert(rowInserts)
-          .select();
-        if (rowErr || !newRows) continue;
+        const newRows = await db.insert<Row>('rows', rowInserts);
+        if (!newRows || newRows.length === 0) continue;
 
         // Insert cell values
         const cellInserts: Array<{ row_id: string; column_id: string; value: string }> = [];
@@ -371,14 +352,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         });
 
         if (cellInserts.length > 0) {
-          await supabase.from('cell_values').insert(cellInserts);
+          await db.insert('cell_values', cellInserts);
         }
       }
 
       // Refresh data
       await fetchWorkspaceData(activeWorkspaceId);
     },
-    [activeWorkspaceId, supabase, fetchWorkspaceData],
+    [activeWorkspaceId, fetchWorkspaceData],
   );
 
   const refreshData = useCallback(async () => {

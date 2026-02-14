@@ -5,8 +5,8 @@ import Papa from 'papaparse';
 import Modal from '@/components/Modal';
 import { useWorkspace } from '@/lib/workspace-context';
 import { useToast } from '@/components/Toast';
-import { createClient } from '@/lib/supabase/client';
-import type { ColumnDefinition } from '@/lib/types';
+import { db } from '@/lib/db';
+import type { Row } from '@/lib/types';
 
 interface CsvUploadModalProps {
   open: boolean;
@@ -40,7 +40,6 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
       for (const col of columns) {
         const colNorm = col.name.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (colNorm === normalized) return col.id;
-        // Partial match
         if (colNorm.includes(normalized) || normalized.includes(colNorm)) return col.id;
       }
       return '__create__';
@@ -64,7 +63,6 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
           setCsvHeaders(headers);
           setCsvData(data);
 
-          // Auto-map headers
           const autoMappings: ColumnMapping[] = headers.map((h) => ({
             csvHeader: h,
             target: findBestMatch(h),
@@ -114,7 +112,6 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
       (c) => mappedColumnIds.includes(c.id) && c.name.toLowerCase().includes('website'),
     );
 
-    // Also check create-new columns
     const createMappings = mappings.filter((m) => m.target === '__create__');
     const hasNewCompanyName = createMappings.some((m) =>
       m.csvHeader.toLowerCase().includes('company name'),
@@ -139,11 +136,9 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
     setUploading(true);
     setProgress(0);
 
-    const supabase = createClient();
-
     try {
       // 1. Create new columns for __create__ mappings
-      const columnMap: Record<string, string> = {}; // csvHeader → columnId
+      const columnMap: Record<string, string> = {};
       const activeMappings = mappings.filter((m) => m.target !== '__skip__');
 
       for (const mapping of activeMappings) {
@@ -164,21 +159,16 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
       for (let i = 0; i < total; i += batchSize) {
         const batch = csvData.slice(i, i + batchSize);
 
-        // Insert rows
         const rowInserts = batch.map(() => ({
           workspace_id: activeWorkspace!.id,
         }));
-        const { data: newRows, error: rowErr } = await supabase
-          .from('rows')
-          .insert(rowInserts)
-          .select();
+        const newRows = await db.insert<Row>('rows', rowInserts);
 
-        if (rowErr || !newRows) {
+        if (!newRows || newRows.length === 0) {
           toast('Error inserting rows', 'error');
           break;
         }
 
-        // Insert cell values
         const cellInserts: Array<{
           row_id: string;
           column_id: string;
@@ -200,7 +190,7 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
         });
 
         if (cellInserts.length > 0) {
-          await supabase.from('cell_values').insert(cellInserts);
+          await db.insert('cell_values', cellInserts);
         }
 
         setProgress(Math.min(i + batchSize, total));
@@ -267,7 +257,6 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Row count info */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">
               Detected <strong className="text-gray-800">{csvHeaders.length}</strong> columns,{' '}
@@ -275,7 +264,6 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
             </span>
           </div>
 
-          {/* Column Mapper */}
           <div className="border border-border rounded-lg overflow-hidden">
             <div className="grid grid-cols-2 gap-0 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-border">
               <span>CSV Column</span>
@@ -307,14 +295,12 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
             </div>
           </div>
 
-          {/* Validation error */}
           {validationError && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
               {validationError}
             </div>
           )}
 
-          {/* Progress */}
           {uploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-xs text-gray-500">
@@ -332,7 +318,6 @@ export default function CsvUploadModal({ open, onClose }: CsvUploadModalProps) {
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
             <button
               onClick={handleClose}
