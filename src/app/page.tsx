@@ -38,9 +38,11 @@ function AppShell() {
           onAddAiColumn={() => setAiColumnOpen(true)}
         />
 
-        {/* Grid area */}
-        <div className="flex-1 overflow-hidden">
-          <DataGrid />
+        {/* Grid area — needs explicit height for AG Grid */}
+        <div className="flex-1 overflow-hidden relative">
+          <div className="absolute inset-0">
+            <DataGrid />
+          </div>
         </div>
       </div>
 

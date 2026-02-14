@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     switch (op.action) {
       case 'select': {
-        let query = supabase.from(op.table).select('*');
+        let query = supabase.from(op.table).select('*').limit(10000);
         if (op.filters) {
           for (const [key, value] of Object.entries(op.filters)) {
             query = query.eq(key, value);
