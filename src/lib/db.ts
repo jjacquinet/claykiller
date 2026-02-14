@@ -37,6 +37,11 @@ export const db = {
     return call<T[]>({ action: 'select_in', table, column, values });
   },
 
+  /** Efficiently get all cell_values for a workspace (server-side join) */
+  getWorkspaceCells<T = Record<string, unknown>>(workspaceId: string): Promise<T[]> {
+    return call<T[]>({ action: 'get_workspace_cells', workspaceId });
+  },
+
   /** INSERT INTO table VALUES (data) RETURNING * */
   insert<T = Record<string, unknown>>(
     table: string,

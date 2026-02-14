@@ -106,10 +106,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setColumns(cols);
       setRows(rws);
 
-      // Fetch all cell values for these rows in one batched query
+      // Fetch all cell values for this workspace efficiently (server-side batched)
       if (rws.length > 0) {
-        const rowIds = rws.map((r) => r.id);
-        const allCells = await db.selectIn<CellValue>('cell_values', 'row_id', rowIds);
+        const allCells = await db.getWorkspaceCells<CellValue>(workspaceId);
         setCellValues(allCells);
       } else {
         setCellValues([]);
