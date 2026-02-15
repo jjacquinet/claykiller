@@ -13,6 +13,7 @@ import RunAiColumnModal from '@/components/RunAiColumnModal';
 import ColumnSettingsModal from '@/components/ColumnSettingsModal';
 import VerifyEmailsModal from '@/components/VerifyEmailsModal';
 import NewTableModal from '@/components/NewTableModal';
+import AddDataModal from '@/components/AddDataModal';
 
 export default function Home() {
   return (
@@ -35,6 +36,7 @@ function AppShell() {
   const [verifyEmailsOpen, setVerifyEmailsOpen] = useState(false);
   const [globalSelectedRowIds, setGlobalSelectedRowIds] = useState<string[]>([]);
   const [newTableOpen, setNewTableOpen] = useState(false);
+  const [addDataOpen, setAddDataOpen] = useState(false);
 
   const runAiColumn = columns.find((c) => c.id === runAiColumnId && c.is_ai_column) ?? null;
   const settingsColumn = columns.find((c) => c.id === settingsColumnId) ?? null;
@@ -60,7 +62,7 @@ function AppShell() {
       {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Toolbar
-          onUploadCsv={() => setCsvModalOpen(true)}
+          onAddData={() => setAddDataOpen(true)}
           onAddColumn={() => setAddColumnOpen(true)}
           onAddAiColumn={() => setAiColumnOpen(true)}
           onVerifyEmails={() => setVerifyEmailsOpen(true)}
@@ -98,6 +100,11 @@ function AppShell() {
         open={newTableOpen}
         onClose={() => setNewTableOpen(false)}
         tableType={activeTab}
+        onCsvUpload={() => setCsvModalOpen(true)}
+      />
+      <AddDataModal
+        open={addDataOpen}
+        onClose={() => setAddDataOpen(false)}
         onCsvUpload={() => setCsvModalOpen(true)}
       />
     </div>

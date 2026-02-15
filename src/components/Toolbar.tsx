@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useWorkspace } from '@/lib/workspace-context';
 
 interface ToolbarProps {
-  onUploadCsv: () => void;
+  onAddData: () => void;
   onAddColumn: () => void;
   onAddAiColumn: () => void;
   onVerifyEmails?: () => void;
 }
 
-export default function Toolbar({ onUploadCsv, onAddColumn, onAddAiColumn, onVerifyEmails }: ToolbarProps) {
-  const { activeWorkspace, renameWorkspace, addRow } = useWorkspace();
+export default function Toolbar({ onAddData, onAddColumn, onAddAiColumn, onVerifyEmails }: ToolbarProps) {
+  const { activeWorkspace, renameWorkspace } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,8 +82,11 @@ export default function Toolbar({ onUploadCsv, onAddColumn, onAddAiColumn, onVer
         {activeWorkspace.table_type === 'people' && onVerifyEmails && (
           <ToolbarButton onClick={onVerifyEmails} icon={<VerifyIcon />} label="Verify Emails" />
         )}
-        <ToolbarButton onClick={onUploadCsv} icon={<UploadIcon />} label="Upload CSV" />
-        <ToolbarButton onClick={addRow} icon={<RowIcon />} label="+ Row" />
+        <ToolbarButton
+          onClick={onAddData}
+          icon={<AddDataIcon />}
+          label={activeWorkspace.table_type === 'people' ? 'Add People' : 'Add Companies'}
+        />
         <ToolbarButton onClick={onAddColumn} icon={<PlusIcon />} label="+ Column" />
         <ToolbarButton
           onClick={onAddAiColumn}
@@ -123,18 +126,10 @@ function ToolbarButton({
   );
 }
 
-function RowIcon() {
+function AddDataIcon() {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-    </svg>
-  );
-}
-
-function UploadIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
     </svg>
   );
 }
