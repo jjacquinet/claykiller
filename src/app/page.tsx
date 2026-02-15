@@ -37,6 +37,7 @@ function AppShell() {
   const [globalSelectedRowIds, setGlobalSelectedRowIds] = useState<string[]>([]);
   const [newTableOpen, setNewTableOpen] = useState(false);
   const [addDataOpen, setAddDataOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
 
   const runAiColumn = columns.find((c) => c.id === runAiColumnId && c.is_ai_column) ?? null;
   const settingsColumn = columns.find((c) => c.id === settingsColumnId) ?? null;
@@ -66,12 +67,14 @@ function AppShell() {
           onAddColumn={() => setAddColumnOpen(true)}
           onAddAiColumn={() => setAiColumnOpen(true)}
           onVerifyEmails={() => setVerifyEmailsOpen(true)}
+          searchText={searchText}
+          onSearchChange={setSearchText}
         />
 
         {/* Grid area — needs explicit height for AG Grid */}
         <div className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0">
-            <DataGrid onRunAiColumn={handleRunAiColumn} onOpenColumnSettings={handleOpenColumnSettings} onSelectedRowsChanged={handleSelectedRowsChanged} />
+            <DataGrid onRunAiColumn={handleRunAiColumn} onOpenColumnSettings={handleOpenColumnSettings} onSelectedRowsChanged={handleSelectedRowsChanged} searchText={searchText} />
           </div>
         </div>
       </div>

@@ -129,9 +129,10 @@ interface DataGridProps {
   onRunAiColumn?: (columnId: string, selectedRowIds: string[]) => void;
   onOpenColumnSettings?: (columnId: string) => void;
   onSelectedRowsChanged?: (rowIds: string[]) => void;
+  searchText?: string;
 }
 
-export default function DataGrid({ onRunAiColumn, onOpenColumnSettings, onSelectedRowsChanged }: DataGridProps) {
+export default function DataGrid({ onRunAiColumn, onOpenColumnSettings, onSelectedRowsChanged, searchText }: DataGridProps) {
   const {
     columns,
     gridRows,
@@ -403,6 +404,7 @@ export default function DataGrid({ onRunAiColumn, onOpenColumnSettings, onSelect
           onCellEditRequest={handleCellEditRequest}
           onColumnResized={handleColumnResized}
           onSelectionChanged={handleSelectionChanged}
+          quickFilterText={searchText || undefined}
           rowHeight={40}
           headerHeight={44}
           animateRows={true}

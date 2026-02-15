@@ -8,9 +8,11 @@ interface ToolbarProps {
   onAddColumn: () => void;
   onAddAiColumn: () => void;
   onVerifyEmails?: () => void;
+  searchText: string;
+  onSearchChange: (text: string) => void;
 }
 
-export default function Toolbar({ onAddData, onAddColumn, onAddAiColumn, onVerifyEmails }: ToolbarProps) {
+export default function Toolbar({ onAddData, onAddColumn, onAddAiColumn, onVerifyEmails, searchText, onSearchChange }: ToolbarProps) {
   const { activeWorkspace, renameWorkspace } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
@@ -75,6 +77,32 @@ export default function Toolbar({ onAddData, onAddColumn, onAddAiColumn, onVerif
         <span className="text-xs font-medium text-muted bg-white/10 px-2 py-0.5 rounded-full capitalize">
           {activeWorkspace.table_type}
         </span>
+      </div>
+
+      {/* Center: search */}
+      <div className="flex-1 flex justify-center px-4 max-w-md mx-auto">
+        <div className="relative w-full">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search…"
+            value={searchText}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full pl-8 pr-8 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors"
+          />
+          {searchText && (
+            <button
+              onClick={() => onSearchChange('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Right: action buttons */}
