@@ -104,7 +104,12 @@ export const DEFAULT_COLUMNS: Record<TableType, DefaultColumn[]> = {
   ],
   companies: [
     { name: 'Company Name', field_key: 'company_name' },
-    { name: 'Company Website', field_key: 'company_website' },
+    { name: 'Website', field_key: 'website' },
+    { name: 'Location', field_key: 'location' },
+    { name: 'Headcount (# of Employees)', field_key: 'headcount' },
+    { name: 'Description', field_key: 'description' },
+    { name: 'Phone', field_key: 'phone' },
+    { name: 'LinkedIn URL', field_key: 'linkedin_url' },
   ],
 };
 

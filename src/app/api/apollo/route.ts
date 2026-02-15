@@ -217,6 +217,8 @@ interface ApolloRawAccount {
   industry?: string | null;
   founded_year?: number | null;
   estimated_num_employees?: number | null;
+  short_description?: string | null;
+  seo_description?: string | null;
   city?: string | null;
   state?: string | null;
   country?: string | null;
@@ -224,26 +226,28 @@ interface ApolloRawAccount {
 
 interface ApolloAccount {
   company_name: string;
-  company_website: string;
-  domain: string;
+  website: string;
+  location: string;
+  headcount: string;
+  description: string;
   phone: string;
   linkedin_url: string;
+  domain: string;
   industry: string;
   founded_year: string;
-  employees: string;
-  location: string;
 }
 
 function mapAccount(raw: ApolloRawAccount): ApolloAccount {
   return {
     company_name: raw.name ?? '',
-    company_website: raw.website_url ?? '',
-    domain: raw.domain ?? '',
+    website: raw.website_url ?? raw.domain ?? '',
+    location: [raw.city, raw.state, raw.country].filter(Boolean).join(', '),
+    headcount: raw.estimated_num_employees ? String(raw.estimated_num_employees) : '',
+    description: raw.short_description ?? raw.seo_description ?? '',
     phone: raw.phone ?? '',
     linkedin_url: raw.linkedin_url ?? '',
+    domain: raw.domain ?? '',
     industry: raw.industry ?? '',
     founded_year: raw.founded_year ? String(raw.founded_year) : '',
-    employees: raw.estimated_num_employees ? String(raw.estimated_num_employees) : '',
-    location: [raw.city, raw.state, raw.country].filter(Boolean).join(', '),
   };
 }

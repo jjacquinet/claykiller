@@ -48,14 +48,15 @@ const APOLLO_CONTACT_FIELD_LABELS: Record<string, string> = {
 // Human-friendly labels for Apollo account fields (companies)
 const APOLLO_ACCOUNT_FIELD_LABELS: Record<string, string> = {
   company_name: 'Company Name',
-  company_website: 'Company Website',
-  domain: 'Domain',
+  website: 'Website',
+  location: 'Location',
+  headcount: 'Headcount (# of Employees)',
+  description: 'Description',
   phone: 'Phone',
   linkedin_url: 'LinkedIn URL',
+  domain: 'Domain',
   industry: 'Industry',
   founded_year: 'Founded Year',
-  employees: 'Employees',
-  location: 'Location',
 };
 
 interface AddDataModalProps {
