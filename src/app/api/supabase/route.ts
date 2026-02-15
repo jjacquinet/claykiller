@@ -1,10 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Generic Supabase proxy route that uses the service role key
  * to bypass RLS. Accepts a JSON body describing the operation.
  */
+
+/** Paginated select that fetches ALL rows, bypassing Supabase's 1000-row default cap. */
+async function paginatedSelect(
+  supabase: SupabaseClient,
+  table: string,
+  options?: {
+    filters?: Record<string, string>;
+    order?: { column: string; ascending: boolean };
+    selectColumns?: string;
+    inFilter?: { column: string; values: string[] };
+  },
+): Promise<{ data: Record<string, unknown>[]; error: string | null }> {
+  const PAGE_SIZE = 1000;
+  const allRows: Record<string, unknown>[] = [];
+  let from = 0;
+
+  while (true) {
+    let query = supabase
+      .from(table)
+      .select(options?.selectColumns ?? '*')
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (options?.filters) {
+      for (const [key, value] of Object.entries(options.filters)) {
+        query = query.eq(key, value);
+      }
+    }
+    if (options?.inFilter) {
+      query = query.in(options.inFilter.column, options.inFilter.values);
+    }
+    if (options?.order) {
+      query = query.order(options.order.column, { ascending: options.order.ascending });
+    }
+
+    const { data, error } = await query;
+    if (error) return { data: allRows, error: error.message };
+    if (!data || data.length === 0) break;
+
+    allRows.push(...(data as unknown as Record<string, unknown>[]));
+
+    // If we got fewer rows than PAGE_SIZE, we've reached the end
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return { data: allRows, error: null };
+}
 
 type Operation =
   | { action: 'select'; table: string; filters?: Record<string, string>; order?: { column: string; ascending: boolean } }
@@ -25,17 +73,11 @@ export async function POST(req: NextRequest) {
 
     switch (op.action) {
       case 'select': {
-        let query = supabase.from(op.table).select('*').limit(10000);
-        if (op.filters) {
-          for (const [key, value] of Object.entries(op.filters)) {
-            query = query.eq(key, value);
-          }
-        }
-        if (op.order) {
-          query = query.order(op.order.column, { ascending: op.order.ascending });
-        }
-        const { data, error } = await query;
-        if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+        const { data, error } = await paginatedSelect(supabase, op.table, {
+          filters: op.filters,
+          order: op.order,
+        });
+        if (error) return NextResponse.json({ error }, { status: 400 });
         return NextResponse.json({ data });
       }
 
@@ -45,41 +87,34 @@ export async function POST(req: NextRequest) {
         const batchSize = 50;
         for (let i = 0; i < op.values.length; i += batchSize) {
           const batch = op.values.slice(i, i + batchSize);
-          const { data, error } = await supabase
-            .from(op.table)
-            .select('*')
-            .in(op.column, batch)
-            .limit(10000);
-          if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-          if (data) allResults.push(...data);
+          const { data, error } = await paginatedSelect(supabase, op.table, {
+            inFilter: { column: op.column, values: batch },
+          });
+          if (error) return NextResponse.json({ error }, { status: 400 });
+          allResults.push(...data);
         }
         return NextResponse.json({ data: allResults });
       }
 
       case 'get_workspace_cells': {
-        // Efficient: get all cell_values for a workspace via inner join on rows
-        // cell_values belongs to rows, rows belongs to workspace
-        // Use Supabase's foreign key filtering: cell_values -> rows -> workspace_id
-        const { data: rows, error: rowErr } = await supabase
-          .from('rows')
-          .select('id')
-          .eq('workspace_id', op.workspaceId)
-          .limit(10000);
-        if (rowErr) return NextResponse.json({ error: rowErr.message }, { status: 400 });
+        // 1. Fetch ALL row IDs for this workspace (paginated)
+        const { data: rows, error: rowErr } = await paginatedSelect(supabase, 'rows', {
+          filters: { workspace_id: op.workspaceId },
+          selectColumns: 'id',
+        });
+        if (rowErr) return NextResponse.json({ error: rowErr }, { status: 400 });
         if (!rows || rows.length === 0) return NextResponse.json({ data: [] });
 
-        // Fetch cell values in batches of 50 row IDs
+        // 2. Fetch cell values in batches of 50 row IDs (each batch paginated)
         const allCells: Record<string, unknown>[] = [];
         const cellBatch = 50;
         for (let i = 0; i < rows.length; i += cellBatch) {
-          const batch = rows.slice(i, i + cellBatch).map((r) => r.id);
-          const { data: cells, error: cellErr } = await supabase
-            .from('cell_values')
-            .select('*')
-            .in('row_id', batch)
-            .limit(10000);
-          if (cellErr) return NextResponse.json({ error: cellErr.message }, { status: 400 });
-          if (cells) allCells.push(...cells);
+          const batchIds = rows.slice(i, i + cellBatch).map((r) => r.id as string);
+          const { data: cells, error: cellErr } = await paginatedSelect(supabase, 'cell_values', {
+            inFilter: { column: 'row_id', values: batchIds },
+          });
+          if (cellErr) return NextResponse.json({ error: cellErr }, { status: 400 });
+          allCells.push(...cells);
         }
         return NextResponse.json({ data: allCells });
       }
