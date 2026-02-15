@@ -3,14 +3,17 @@
 import { useWorkspace } from '@/lib/workspace-context';
 import type { TableType } from '@/lib/types';
 
-export default function Sidebar() {
+interface SidebarProps {
+  onNewTable?: () => void;
+}
+
+export default function Sidebar({ onNewTable }: SidebarProps) {
   const {
     workspaces,
     activeWorkspace,
     activeTab,
     setActiveTab,
     selectWorkspace,
-    createWorkspace,
   } = useWorkspace();
 
   const filteredWorkspaces = workspaces.filter((w) => w.table_type === activeTab);
@@ -70,14 +73,14 @@ export default function Sidebar() {
       {/* New Table button */}
       <div className="px-3 pb-4 pt-2">
         <button
-          onClick={() => createWorkspace(activeTab)}
+          onClick={onNewTable}
           className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium
             bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white transition-colors border border-white/10"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          New Table
+          {activeTab === 'people' ? 'Add People Table' : 'Add Company Table'}
         </button>
       </div>
     </aside>

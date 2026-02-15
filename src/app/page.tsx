@@ -12,6 +12,7 @@ import AiColumnModal from '@/components/AiColumnModal';
 import RunAiColumnModal from '@/components/RunAiColumnModal';
 import ColumnSettingsModal from '@/components/ColumnSettingsModal';
 import VerifyEmailsModal from '@/components/VerifyEmailsModal';
+import NewTableModal from '@/components/NewTableModal';
 
 export default function Home() {
   return (
@@ -24,7 +25,7 @@ export default function Home() {
 }
 
 function AppShell() {
-  const { columns } = useWorkspace();
+  const { columns, activeTab } = useWorkspace();
   const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [aiColumnOpen, setAiColumnOpen] = useState(false);
@@ -33,6 +34,7 @@ function AppShell() {
   const [settingsColumnId, setSettingsColumnId] = useState<string | null>(null);
   const [verifyEmailsOpen, setVerifyEmailsOpen] = useState(false);
   const [globalSelectedRowIds, setGlobalSelectedRowIds] = useState<string[]>([]);
+  const [newTableOpen, setNewTableOpen] = useState(false);
 
   const runAiColumn = columns.find((c) => c.id === runAiColumnId && c.is_ai_column) ?? null;
   const settingsColumn = columns.find((c) => c.id === settingsColumnId) ?? null;
@@ -53,7 +55,7 @@ function AppShell() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <Sidebar />
+      <Sidebar onNewTable={() => setNewTableOpen(true)} />
 
       {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -91,6 +93,12 @@ function AppShell() {
         open={verifyEmailsOpen}
         onClose={() => setVerifyEmailsOpen(false)}
         selectedRowIds={globalSelectedRowIds}
+      />
+      <NewTableModal
+        open={newTableOpen}
+        onClose={() => setNewTableOpen(false)}
+        tableType={activeTab}
+        onCsvUpload={() => setCsvModalOpen(true)}
       />
     </div>
   );
