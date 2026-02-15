@@ -7,9 +7,10 @@ interface ToolbarProps {
   onUploadCsv: () => void;
   onAddColumn: () => void;
   onAddAiColumn: () => void;
+  onVerifyEmails?: () => void;
 }
 
-export default function Toolbar({ onUploadCsv, onAddColumn, onAddAiColumn }: ToolbarProps) {
+export default function Toolbar({ onUploadCsv, onAddColumn, onAddAiColumn, onVerifyEmails }: ToolbarProps) {
   const { activeWorkspace, renameWorkspace, addRow } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
@@ -78,6 +79,9 @@ export default function Toolbar({ onUploadCsv, onAddColumn, onAddAiColumn }: Too
 
       {/* Right: action buttons */}
       <div className="flex items-center gap-2">
+        {activeWorkspace.table_type === 'people' && onVerifyEmails && (
+          <ToolbarButton onClick={onVerifyEmails} icon={<VerifyIcon />} label="Verify Emails" />
+        )}
         <ToolbarButton onClick={onUploadCsv} icon={<UploadIcon />} label="Upload CSV" />
         <ToolbarButton onClick={addRow} icon={<RowIcon />} label="+ Row" />
         <ToolbarButton onClick={onAddColumn} icon={<PlusIcon />} label="+ Column" />
@@ -147,6 +151,14 @@ function SparklesIcon() {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+    </svg>
+  );
+}
+
+function VerifyIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
 }

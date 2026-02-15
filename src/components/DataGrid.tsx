@@ -128,9 +128,10 @@ function SpinnerRenderer() {
 interface DataGridProps {
   onRunAiColumn?: (columnId: string, selectedRowIds: string[]) => void;
   onOpenColumnSettings?: (columnId: string) => void;
+  onSelectedRowsChanged?: (rowIds: string[]) => void;
 }
 
-export default function DataGrid({ onRunAiColumn, onOpenColumnSettings }: DataGridProps) {
+export default function DataGrid({ onRunAiColumn, onOpenColumnSettings, onSelectedRowsChanged }: DataGridProps) {
   const {
     columns,
     gridRows,
@@ -286,8 +287,9 @@ export default function DataGrid({ onRunAiColumn, onOpenColumnSettings }: DataGr
       const ids = selected.map((r) => r._rowId);
       setSelectedRowIds(ids);
       selectedRowIdsRef.current = ids;
+      onSelectedRowsChanged?.(ids);
     },
-    [],
+    [onSelectedRowsChanged],
   );
 
   // ── Cell edit request handler (readOnlyEdit mode) ──

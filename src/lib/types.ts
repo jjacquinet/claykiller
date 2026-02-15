@@ -96,6 +96,7 @@ export const DEFAULT_COLUMNS: Record<TableType, DefaultColumn[]> = {
     { name: 'First Name', field_key: 'first_name' },
     { name: 'Last Name', field_key: 'last_name' },
     { name: 'Email', field_key: 'email' },
+    { name: 'Email Status', field_key: 'email_status' },
     { name: 'LinkedIn URL', field_key: 'linkedin_url' },
     { name: 'Company Name', field_key: 'company_name' },
     { name: 'Title', field_key: 'title' },

@@ -11,6 +11,7 @@ import AddColumnModal from '@/components/AddColumnModal';
 import AiColumnModal from '@/components/AiColumnModal';
 import RunAiColumnModal from '@/components/RunAiColumnModal';
 import ColumnSettingsModal from '@/components/ColumnSettingsModal';
+import VerifyEmailsModal from '@/components/VerifyEmailsModal';
 
 export default function Home() {
   return (
@@ -30,6 +31,8 @@ function AppShell() {
   const [runAiColumnId, setRunAiColumnId] = useState<string | null>(null);
   const [runAiSelectedRowIds, setRunAiSelectedRowIds] = useState<string[]>([]);
   const [settingsColumnId, setSettingsColumnId] = useState<string | null>(null);
+  const [verifyEmailsOpen, setVerifyEmailsOpen] = useState(false);
+  const [globalSelectedRowIds, setGlobalSelectedRowIds] = useState<string[]>([]);
 
   const runAiColumn = columns.find((c) => c.id === runAiColumnId && c.is_ai_column) ?? null;
   const settingsColumn = columns.find((c) => c.id === settingsColumnId) ?? null;
@@ -43,6 +46,10 @@ function AppShell() {
     setSettingsColumnId(columnId);
   }, []);
 
+  const handleSelectedRowsChanged = useCallback((rowIds: string[]) => {
+    setGlobalSelectedRowIds(rowIds);
+  }, []);
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
@@ -54,12 +61,13 @@ function AppShell() {
           onUploadCsv={() => setCsvModalOpen(true)}
           onAddColumn={() => setAddColumnOpen(true)}
           onAddAiColumn={() => setAiColumnOpen(true)}
+          onVerifyEmails={() => setVerifyEmailsOpen(true)}
         />
 
         {/* Grid area — needs explicit height for AG Grid */}
         <div className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0">
-            <DataGrid onRunAiColumn={handleRunAiColumn} onOpenColumnSettings={handleOpenColumnSettings} />
+            <DataGrid onRunAiColumn={handleRunAiColumn} onOpenColumnSettings={handleOpenColumnSettings} onSelectedRowsChanged={handleSelectedRowsChanged} />
           </div>
         </div>
       </div>
@@ -78,6 +86,11 @@ function AppShell() {
         open={settingsColumnId !== null}
         onClose={() => setSettingsColumnId(null)}
         column={settingsColumn}
+      />
+      <VerifyEmailsModal
+        open={verifyEmailsOpen}
+        onClose={() => setVerifyEmailsOpen(false)}
+        selectedRowIds={globalSelectedRowIds}
       />
     </div>
   );
