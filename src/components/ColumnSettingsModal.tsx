@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Modal from '@/components/Modal';
 import { useWorkspace } from '@/lib/workspace-context';
 import { useToast } from '@/components/Toast';
+import { isProtectedColumn } from '@/lib/types';
 import type { ColumnDefinition } from '@/lib/types';
 
 interface ColumnSettingsModalProps {
@@ -13,7 +14,7 @@ interface ColumnSettingsModalProps {
 }
 
 export default function ColumnSettingsModal({ open, onClose, column }: ColumnSettingsModalProps) {
-  const { deleteColumn, rows } = useWorkspace();
+  const { deleteColumn, rows, activeWorkspace } = useWorkspace();
   const { toast } = useToast();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -44,6 +45,10 @@ export default function ColumnSettingsModal({ open, onClose, column }: ColumnSet
     }
   };
 
+  const isProtected = column && activeWorkspace
+    ? isProtectedColumn(column.field_key, activeWorkspace.table_type)
+    : false;
+
   if (!column) return null;
 
   return (
@@ -58,25 +63,49 @@ export default function ColumnSettingsModal({ open, onClose, column }: ColumnSet
                 {column.is_ai_column ? 'AI Column' : 'Data Column'} &middot; {rows.length} rows
               </p>
             </div>
-            {column.is_ai_column && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                </svg>
-                AI
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {isProtected && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Protected
+                </span>
+              )}
+              {column.is_ai_column && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                  AI
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Danger Zone */}
-        <div className="border border-red-500/20 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 bg-red-500/5 border-b border-red-500/20">
-            <h3 className="text-sm font-semibold text-red-400">Danger Zone</h3>
+        <div className={`border rounded-lg overflow-hidden ${isProtected ? 'border-white/10' : 'border-red-500/20'}`}>
+          <div className={`px-4 py-3 border-b ${isProtected ? 'bg-white/[0.02] border-white/10' : 'bg-red-500/5 border-red-500/20'}`}>
+            <h3 className={`text-sm font-semibold ${isProtected ? 'text-gray-400' : 'text-red-400'}`}>
+              {isProtected ? 'Delete Column' : 'Danger Zone'}
+            </h3>
           </div>
 
           <div className="p-4">
-            {!showDeleteConfirm ? (
+            {isProtected ? (
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-gray-400">This column cannot be deleted</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    &ldquo;{column.name}&rdquo; is a default column for {activeWorkspace?.table_type} tables and is protected from deletion.
+                  </p>
+                </div>
+              </div>
+            ) : !showDeleteConfirm ? (
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-300">Delete this column</p>

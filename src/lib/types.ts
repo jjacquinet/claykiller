@@ -106,3 +106,8 @@ export const DEFAULT_COLUMNS: Record<TableType, DefaultColumn[]> = {
     { name: 'Company Website', field_key: 'company_website' },
   ],
 };
+
+/** Check if a column is a protected default column that cannot be deleted */
+export function isProtectedColumn(fieldKey: string, tableType: TableType): boolean {
+  return DEFAULT_COLUMNS[tableType].some((col) => col.field_key === fieldKey);
+}
