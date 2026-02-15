@@ -23,17 +23,8 @@ interface ApolloList {
   count: number;
 }
 
-interface ApolloContact {
-  first_name: string;
-  last_name: string;
-  email: string;
-  title: string;
-  linkedin_url: string;
-  company_name: string;
-  company_website: string;
-  phone: string;
-  location: string;
-}
+// Generic Apollo record — works for both contacts and accounts
+type ApolloRecord = Record<string, string>;
 
 interface ColumnMapping {
   apolloField: string;
@@ -41,7 +32,8 @@ interface ColumnMapping {
   target: MappingValue;
 }
 
-const APOLLO_FIELD_LABELS: Record<string, string> = {
+// Human-friendly labels for Apollo contact fields (people)
+const APOLLO_CONTACT_FIELD_LABELS: Record<string, string> = {
   first_name: 'First Name',
   last_name: 'Last Name',
   email: 'Email',
@@ -50,6 +42,19 @@ const APOLLO_FIELD_LABELS: Record<string, string> = {
   company_name: 'Company Name',
   company_website: 'Company Website',
   phone: 'Phone',
+  location: 'Location',
+};
+
+// Human-friendly labels for Apollo account fields (companies)
+const APOLLO_ACCOUNT_FIELD_LABELS: Record<string, string> = {
+  company_name: 'Company Name',
+  company_website: 'Company Website',
+  domain: 'Domain',
+  phone: 'Phone',
+  linkedin_url: 'LinkedIn URL',
+  industry: 'Industry',
+  founded_year: 'Founded Year',
+  employees: 'Employees',
   location: 'Location',
 };
 
@@ -70,8 +75,8 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
   const [listsLoading, setListsLoading] = useState(false);
   const [listSearch, setListSearch] = useState('');
   const [selectedList, setSelectedList] = useState<ApolloList | null>(null);
-  const [contacts, setContacts] = useState<ApolloContact[]>([]);
-  const [contactsLoading, setContactsLoading] = useState(false);
+  const [records, setRecords] = useState<ApolloRecord[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
   const [mappings, setMappings] = useState<ColumnMapping[]>([]);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -83,6 +88,10 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
   const [savingRow, setSavingRow] = useState(false);
 
   const isPeople = activeWorkspace?.table_type === 'people';
+  const fieldLabels = isPeople ? APOLLO_CONTACT_FIELD_LABELS : APOLLO_ACCOUNT_FIELD_LABELS;
+  const apolloModality = isPeople ? 'contacts' : 'accounts';
+  const apolloAction = isPeople ? 'contacts' : 'accounts';
+  const entityLabel = isPeople ? 'contacts' : 'companies';
 
   // Protected (default) columns for the current table type
   const defaultCols = useMemo(() => {
@@ -110,8 +119,8 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
       setListsLoading(false);
       setListSearch('');
       setSelectedList(null);
-      setContacts([]);
-      setContactsLoading(false);
+      setRecords([]);
+      setRecordsLoading(false);
       setMappings([]);
       setImporting(false);
       setProgress({ done: 0, total: 0 });
@@ -153,7 +162,7 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
     setStep('apollo_list');
     setListsLoading(true);
     try {
-      const res = await fetch('/api/apollo?action=lists');
+      const res = await fetch(`/api/apollo?action=lists&modality=${apolloModality}`);
       if (!res.ok) throw new Error('Failed to fetch lists');
       const data = await res.json();
       setLists(data.lists || []);
@@ -163,32 +172,33 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
     } finally {
       setListsLoading(false);
     }
-  }, [toast]);
+  }, [toast, apolloModality]);
 
   const handleListConfirm = useCallback(async () => {
     if (!selectedList) return;
-    setContactsLoading(true);
+    setRecordsLoading(true);
     try {
       const res = await fetch('/api/apollo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'contacts', listId: selectedList.id }),
+        body: JSON.stringify({ action: apolloAction, listId: selectedList.id }),
       });
-      if (!res.ok) throw new Error('Failed to fetch contacts');
+      if (!res.ok) throw new Error(`Failed to fetch ${entityLabel}`);
       const data = await res.json();
-      const fetchedContacts: ApolloContact[] = data.contacts || [];
-      setContacts(fetchedContacts);
+      // Response key is 'contacts' for people, 'accounts' for companies
+      const fetchedRecords: ApolloRecord[] = data[apolloAction] || [];
+      setRecords(fetchedRecords);
 
       // Build mappings against current columns
-      const apolloFields = Object.keys(APOLLO_FIELD_LABELS).filter((field) =>
-        fetchedContacts.some((c) => {
-          const val = c[field as keyof ApolloContact];
+      const apolloFields = Object.keys(fieldLabels).filter((field) =>
+        fetchedRecords.some((r) => {
+          const val = r[field];
           return val !== undefined && val !== null && val !== '';
         }),
       );
 
       const autoMappings: ColumnMapping[] = apolloFields.map((field) => {
-        const label = APOLLO_FIELD_LABELS[field];
+        const label = fieldLabels[field];
         const normalized = label.toLowerCase().replace(/[^a-z0-9]/g, '');
         let target: MappingValue = '__create__';
         for (const col of columns) {
@@ -204,11 +214,11 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
       setMappings(autoMappings);
       setStep('apollo_mapping');
     } catch {
-      toast('Failed to fetch Apollo contacts', 'error');
+      toast(`Failed to fetch Apollo ${entityLabel}`, 'error');
     } finally {
-      setContactsLoading(false);
+      setRecordsLoading(false);
     }
-  }, [selectedList, columns, toast]);
+  }, [selectedList, columns, toast, apolloAction, entityLabel, fieldLabels]);
 
   const updateMapping = (index: number, value: MappingValue) => {
     setMappings((prev) => {
@@ -219,11 +229,11 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
   };
 
   const handleApolloImport = useCallback(async () => {
-    if (!activeWorkspace || contacts.length === 0) return;
+    if (!activeWorkspace || records.length === 0) return;
 
     setImporting(true);
     setStep('apollo_importing');
-    const total = contacts.length;
+    const total = records.length;
     setProgress({ done: 0, total });
 
     try {
@@ -242,8 +252,8 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
       const batchSize = 50;
       let done = 0;
 
-      for (let i = 0; i < contacts.length; i += batchSize) {
-        const batch = contacts.slice(i, i + batchSize);
+      for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
         const rowInserts = batch.map(() => ({ workspace_id: activeWorkspace.id }));
         const newRows = await db.insert<Row>('rows', rowInserts);
 
@@ -254,9 +264,9 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
 
         const cellInserts: Array<{ row_id: string; column_id: string; value: string }> = [];
         newRows.forEach((row, idx) => {
-          const contact = batch[idx];
+          const record = batch[idx];
           Object.entries(columnMap).forEach(([apolloField, columnId]) => {
-            const val = contact[apolloField as keyof ApolloContact];
+            const val = record[apolloField];
             if (val !== undefined && val !== null && val !== '') {
               cellInserts.push({ row_id: row.id, column_id: columnId, value: val });
             }
@@ -272,14 +282,14 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
       }
 
       await refreshData();
-      toast(`Imported ${contacts.length} contacts from Apollo`, 'success');
+      toast(`Imported ${records.length} ${entityLabel} from Apollo`, 'success');
       onClose();
     } catch {
       toast('Import failed', 'error');
     } finally {
       setImporting(false);
     }
-  }, [activeWorkspace, contacts, mappings, addColumn, refreshData, toast, onClose]);
+  }, [activeWorkspace, records, mappings, addColumn, entityLabel, refreshData, toast, onClose]);
 
   // ── Single row handlers ──
 
@@ -366,7 +376,7 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
       {step === 'choose' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-400">How would you like to add data?</p>
-          <div className={`grid gap-3 ${isPeople ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className="grid gap-3 grid-cols-3">
             {/* Upload CSV */}
             <button
               onClick={handleCsvChoice}
@@ -383,23 +393,21 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
               </div>
             </button>
 
-            {/* Pull from Apollo — people only */}
-            {isPeople && (
-              <button
-                onClick={handleApolloChoice}
-                className="group flex flex-col items-center gap-3 p-5 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-orange-500/30 transition-all text-center"
-              >
-                <div className="w-11 h-11 rounded-xl bg-white/5 group-hover:bg-orange-500/10 flex items-center justify-center transition-colors">
-                  <svg className="w-5 h-5 text-gray-400 group-hover:text-orange-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">Pull from Apollo</p>
-                  <p className="text-xs text-gray-500 mt-1">Import saved list</p>
-                </div>
-              </button>
-            )}
+            {/* Pull from Apollo */}
+            <button
+              onClick={handleApolloChoice}
+              className="group flex flex-col items-center gap-3 p-5 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-orange-500/30 transition-all text-center"
+            >
+              <div className="w-11 h-11 rounded-xl bg-white/5 group-hover:bg-orange-500/10 flex items-center justify-center transition-colors">
+                <svg className="w-5 h-5 text-gray-400 group-hover:text-orange-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">Pull from Apollo</p>
+                <p className="text-xs text-gray-500 mt-1">Import saved {isPeople ? 'contact' : 'company'} list</p>
+              </div>
+            </button>
 
             {/* Add Single Row */}
             <button
@@ -458,7 +466,7 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
                 {filteredLists.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-sm text-gray-500">
-                      {lists.length === 0 ? 'No saved people lists found in Apollo' : 'No lists match your search'}
+                      {lists.length === 0 ? `No saved ${isPeople ? 'people' : 'company'} lists found in Apollo` : 'No lists match your search'}
                     </p>
                   </div>
                 ) : (
@@ -473,7 +481,7 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
                         {list.name}
                       </p>
                       <span className="flex-shrink-0 ml-3 text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
-                        {list.count} contacts
+                        {list.count} {isPeople ? 'contacts' : 'companies'}
                       </span>
                     </button>
                   ))
@@ -486,11 +494,11 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
                 </button>
                 <button
                   onClick={handleListConfirm}
-                  disabled={!selectedList || contactsLoading}
+                  disabled={!selectedList || recordsLoading}
                   className="px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
-                  {contactsLoading ? (
-                    <><span className="spinner" /> Fetching contacts…</>
+                  {recordsLoading ? (
+                    <><span className="spinner" /> Fetching {entityLabel}…</>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -511,7 +519,7 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
         <div className="space-y-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">
-              Pulled <strong className="text-gray-200">{contacts.length}</strong> contacts from{' '}
+              Pulled <strong className="text-gray-200">{records.length}</strong> {entityLabel} from{' '}
               <strong className="text-gray-200">{selectedList?.name}</strong>
             </span>
           </div>
@@ -549,10 +557,10 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
             </button>
             <button
               onClick={handleApolloImport}
-              disabled={importing || contacts.length === 0}
+              disabled={importing || records.length === 0}
               className="px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50"
             >
-              Import {contacts.length} Contacts
+              Import {records.length} {isPeople ? 'Contacts' : 'Companies'}
             </button>
           </div>
         </div>
@@ -563,7 +571,7 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
         <div className="space-y-4 py-4">
           <div className="flex flex-col items-center justify-center">
             <span className="spinner mb-3" />
-            <p className="text-sm font-medium text-gray-200">Importing contacts…</p>
+            <p className="text-sm font-medium text-gray-200">Importing {entityLabel}…</p>
             <p className="text-xs text-gray-500 mt-1">{progress.done}/{progress.total} rows</p>
           </div>
           <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">

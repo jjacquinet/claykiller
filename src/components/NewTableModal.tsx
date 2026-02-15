@@ -17,17 +17,8 @@ interface ApolloList {
   count: number;
 }
 
-interface ApolloContact {
-  first_name: string;
-  last_name: string;
-  email: string;
-  title: string;
-  linkedin_url: string;
-  company_name: string;
-  company_website: string;
-  phone: string;
-  location: string;
-}
+// Generic Apollo record — works for both contacts and accounts
+type ApolloRecord = Record<string, string>;
 
 interface ColumnMapping {
   apolloField: string;
@@ -35,8 +26,8 @@ interface ColumnMapping {
   target: MappingValue;
 }
 
-// Human-friendly labels for Apollo fields
-const APOLLO_FIELD_LABELS: Record<string, string> = {
+// Human-friendly labels for Apollo contact fields (people)
+const APOLLO_CONTACT_FIELD_LABELS: Record<string, string> = {
   first_name: 'First Name',
   last_name: 'Last Name',
   email: 'Email',
@@ -45,6 +36,19 @@ const APOLLO_FIELD_LABELS: Record<string, string> = {
   company_name: 'Company Name',
   company_website: 'Company Website',
   phone: 'Phone',
+  location: 'Location',
+};
+
+// Human-friendly labels for Apollo account fields (companies)
+const APOLLO_ACCOUNT_FIELD_LABELS: Record<string, string> = {
+  company_name: 'Company Name',
+  company_website: 'Company Website',
+  domain: 'Domain',
+  phone: 'Phone',
+  linkedin_url: 'LinkedIn URL',
+  industry: 'Industry',
+  founded_year: 'Founded Year',
+  employees: 'Employees',
   location: 'Location',
 };
 
@@ -67,10 +71,17 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
   const [listSearch, setListSearch] = useState('');
   const [selectedList, setSelectedList] = useState<ApolloList | null>(null);
 
-  // Apollo contacts & mapping state
-  const [contacts, setContacts] = useState<ApolloContact[]>([]);
-  const [contactsLoading, setContactsLoading] = useState(false);
+  // Apollo records & mapping state (works for both contacts and accounts)
+  const [records, setRecords] = useState<ApolloRecord[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
   const [mappings, setMappings] = useState<ColumnMapping[]>([]);
+
+  // Derived helpers
+  const isPeople = tableType === 'people';
+  const fieldLabels = isPeople ? APOLLO_CONTACT_FIELD_LABELS : APOLLO_ACCOUNT_FIELD_LABELS;
+  const apolloModality = isPeople ? 'contacts' : 'accounts';
+  const apolloAction = isPeople ? 'contacts' : 'accounts';
+  const entityLabel = isPeople ? 'contacts' : 'companies';
 
   // Import state
   const [importing, setImporting] = useState(false);
@@ -87,8 +98,8 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
       setListsLoading(false);
       setListSearch('');
       setSelectedList(null);
-      setContacts([]);
-      setContactsLoading(false);
+      setRecords([]);
+      setRecordsLoading(false);
       setMappings([]);
       setImporting(false);
       setProgress({ done: 0, total: 0 });
@@ -117,7 +128,7 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
     setStep('apollo_list');
     setListsLoading(true);
     try {
-      const res = await fetch('/api/apollo?action=lists');
+      const res = await fetch(`/api/apollo?action=lists&modality=${apolloModality}`);
       if (!res.ok) throw new Error('Failed to fetch lists');
       const data = await res.json();
       setLists(data.lists || []);
@@ -127,57 +138,58 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
     } finally {
       setListsLoading(false);
     }
-  }, [toast]);
+  }, [toast, apolloModality]);
 
   const handleListConfirm = useCallback(async () => {
     if (!selectedList) return;
 
     // 1. Create workspace
-    setContactsLoading(true);
+    setRecordsLoading(true);
     await createWorkspace(tableType);
     createdWorkspaceRef.current = true;
 
-    // 2. Fetch contacts from Apollo
+    // 2. Fetch records from Apollo
     try {
       const res = await fetch('/api/apollo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'contacts', listId: selectedList.id }),
+        body: JSON.stringify({ action: apolloAction, listId: selectedList.id }),
       });
-      if (!res.ok) throw new Error('Failed to fetch contacts');
+      if (!res.ok) throw new Error(`Failed to fetch ${entityLabel}`);
       const data = await res.json();
-      setContacts(data.contacts || []);
+      // Response key is 'contacts' for people, 'accounts' for companies
+      setRecords(data[apolloAction] || []);
     } catch (err) {
-      toast('Failed to fetch Apollo contacts', 'error');
-      setContactsLoading(false);
+      toast(`Failed to fetch Apollo ${entityLabel}`, 'error');
+      setRecordsLoading(false);
       return;
     }
-    setContactsLoading(false);
+    setRecordsLoading(false);
 
     // Wait a tick for columns state to update after workspace creation
     setTimeout(() => {
       setStep('apollo_mapping');
     }, 200);
-  }, [selectedList, createWorkspace, tableType, toast]);
+  }, [selectedList, createWorkspace, tableType, apolloAction, entityLabel, toast]);
 
   // Build mappings when we move to mapping step
   // We need to read columns from workspace context AFTER workspace is created
   // This is done via a separate effect
   const buildMappingsForCurrentColumns = useCallback(
     (currentColumns: ColumnDefinition[]) => {
-      if (contacts.length === 0) return;
+      if (records.length === 0) return;
 
       // Determine which Apollo fields have data
-      const apolloFields = Object.keys(APOLLO_FIELD_LABELS).filter((field) =>
-        contacts.some((c) => {
-          const val = c[field as keyof ApolloContact];
+      const apolloFields = Object.keys(fieldLabels).filter((field) =>
+        records.some((r) => {
+          const val = r[field];
           return val !== undefined && val !== null && val !== '';
         }),
       );
 
       // Auto-match Apollo fields to workspace columns
       const autoMappings: ColumnMapping[] = apolloFields.map((field) => {
-        const label = APOLLO_FIELD_LABELS[field];
+        const label = fieldLabels[field];
         const normalized = label.toLowerCase().replace(/[^a-z0-9]/g, '');
 
         // Try to match with existing columns
@@ -195,15 +207,15 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
 
       setMappings(autoMappings);
     },
-    [contacts],
+    [records, fieldLabels],
   );
 
   // When step changes to mapping, build the mappings
   useEffect(() => {
-    if (step === 'apollo_mapping' && contacts.length > 0) {
+    if (step === 'apollo_mapping' && records.length > 0) {
       buildMappingsForCurrentColumns(columns);
     }
-  }, [step, contacts, columns, buildMappingsForCurrentColumns]);
+  }, [step, records, columns, buildMappingsForCurrentColumns]);
 
   const updateMapping = (index: number, value: MappingValue) => {
     setMappings((prev) => {
@@ -214,11 +226,11 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
   };
 
   const handleImport = useCallback(async () => {
-    if (!activeWorkspace || contacts.length === 0) return;
+    if (!activeWorkspace || records.length === 0) return;
 
     setImporting(true);
     setStep('importing');
-    const total = contacts.length;
+    const total = records.length;
     setProgress({ done: 0, total });
 
     try {
@@ -241,8 +253,8 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
       const batchSize = 50;
       let done = 0;
 
-      for (let i = 0; i < contacts.length; i += batchSize) {
-        const batch = contacts.slice(i, i + batchSize);
+      for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
 
         const rowInserts = batch.map(() => ({
           workspace_id: activeWorkspace.id,
@@ -257,9 +269,9 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
         const cellInserts: Array<{ row_id: string; column_id: string; value: string }> = [];
 
         newRows.forEach((row, idx) => {
-          const contact = batch[idx];
+          const record = batch[idx];
           Object.entries(columnMap).forEach(([apolloField, columnId]) => {
-            const val = contact[apolloField as keyof ApolloContact];
+            const val = record[apolloField];
             if (val !== undefined && val !== null && val !== '') {
               cellInserts.push({
                 row_id: row.id,
@@ -279,7 +291,7 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
       }
 
       await refreshData();
-      toast(`Imported ${contacts.length} contacts from Apollo`, 'success');
+      toast(`Imported ${records.length} ${entityLabel} from Apollo`, 'success');
       onClose();
     } catch (err) {
       console.error('Apollo import error:', err);
@@ -287,7 +299,7 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
     } finally {
       setImporting(false);
     }
-  }, [activeWorkspace, contacts, mappings, addColumn, refreshData, toast, onClose]);
+  }, [activeWorkspace, records, mappings, addColumn, entityLabel, refreshData, toast, onClose]);
 
   const handleClose = () => {
     if (importing) return;
@@ -320,22 +332,20 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
             </button>
 
             {/* Pull from Apollo option */}
-            {tableType === 'people' && (
-              <button
-                onClick={handleApolloChoice}
-                className="group flex flex-col items-center gap-3 p-6 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-orange-500/30 transition-all text-center"
-              >
-                <div className="w-12 h-12 rounded-xl bg-white/5 group-hover:bg-orange-500/10 flex items-center justify-center transition-colors">
-                  <svg className="w-6 h-6 text-gray-400 group-hover:text-orange-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">Pull from Apollo</p>
-                  <p className="text-xs text-gray-500 mt-1">Import a saved contact list</p>
-                </div>
-              </button>
-            )}
+            <button
+              onClick={handleApolloChoice}
+              className="group flex flex-col items-center gap-3 p-6 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-orange-500/30 transition-all text-center"
+            >
+              <div className="w-12 h-12 rounded-xl bg-white/5 group-hover:bg-orange-500/10 flex items-center justify-center transition-colors">
+                <svg className="w-6 h-6 text-gray-400 group-hover:text-orange-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">Pull from Apollo</p>
+                <p className="text-xs text-gray-500 mt-1">Import a saved {isPeople ? 'contact' : 'company'} list</p>
+              </div>
+            </button>
           </div>
         </div>
       )}
@@ -380,7 +390,7 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
                 {filteredLists.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-sm text-gray-500">
-                      {lists.length === 0 ? 'No saved people lists found in Apollo' : 'No lists match your search'}
+                      {lists.length === 0 ? `No saved ${isPeople ? 'people' : 'company'} lists found in Apollo` : 'No lists match your search'}
                     </p>
                   </div>
                 ) : (
@@ -400,7 +410,7 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
                         </p>
                       </div>
                       <span className="flex-shrink-0 ml-3 text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
-                        {list.count} contacts
+                        {list.count} {isPeople ? 'contacts' : 'companies'}
                       </span>
                     </button>
                   ))
@@ -417,13 +427,13 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
                 </button>
                 <button
                   onClick={handleListConfirm}
-                  disabled={!selectedList || contactsLoading}
+                  disabled={!selectedList || recordsLoading}
                   className="px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
-                  {contactsLoading ? (
+                  {recordsLoading ? (
                     <>
                       <span className="spinner" />
-                      Fetching contacts…
+                      Fetching {entityLabel}…
                     </>
                   ) : (
                     <>
@@ -445,7 +455,7 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
         <div className="space-y-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">
-              Pulled <strong className="text-gray-200">{contacts.length}</strong> contacts from{' '}
+              Pulled <strong className="text-gray-200">{records.length}</strong> {entityLabel} from{' '}
               <strong className="text-gray-200">{selectedList?.name}</strong>
             </span>
           </div>
@@ -491,10 +501,10 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
             </button>
             <button
               onClick={handleImport}
-              disabled={importing || contacts.length === 0}
+              disabled={importing || records.length === 0}
               className="px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50"
             >
-              Import {contacts.length} Contacts
+              Import {records.length} {isPeople ? 'Contacts' : 'Companies'}
             </button>
           </div>
         </div>
@@ -505,7 +515,7 @@ export default function NewTableModal({ open, onClose, tableType, onCsvUpload }:
         <div className="space-y-4 py-4">
           <div className="flex flex-col items-center justify-center">
             <span className="spinner mb-3" />
-            <p className="text-sm font-medium text-gray-200">Importing contacts…</p>
+            <p className="text-sm font-medium text-gray-200">Importing {entityLabel}…</p>
             <p className="text-xs text-gray-500 mt-1">
               {progress.done}/{progress.total} rows
             </p>
