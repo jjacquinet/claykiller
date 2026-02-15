@@ -84,8 +84,23 @@ function ColumnHeader(
           </svg>
         )}
         <span className="truncate">{params.displayName}</span>
-        {sortState === 'asc' && <span className="text-gray-400 ml-0.5">▲</span>}
-        {sortState === 'desc' && <span className="text-gray-400 ml-0.5">▼</span>}
+        {/* Sort arrows — always visible */}
+        <span className="flex flex-col ml-1 flex-shrink-0 leading-none gap-0">
+          <svg
+            className={`w-3 h-3 ${sortState === 'asc' ? 'text-accent' : 'text-gray-600'} transition-colors`}
+            viewBox="0 0 12 12"
+            fill="currentColor"
+          >
+            <path d="M6 2l4 5H2z" />
+          </svg>
+          <svg
+            className={`w-3 h-3 -mt-1 ${sortState === 'desc' ? 'text-accent' : 'text-gray-600'} transition-colors`}
+            viewBox="0 0 12 12"
+            fill="currentColor"
+          >
+            <path d="M6 10L2 5h8z" />
+          </svg>
+        </span>
       </div>
       {/* Run button for AI columns — always visible with accent style */}
       {isAi && (
