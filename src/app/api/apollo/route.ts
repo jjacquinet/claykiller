@@ -111,7 +111,8 @@ export async function POST(req: NextRequest) {
     }
 
     // action === 'accounts'
-    const allAccounts: ApolloAccount[] = [];
+    // Step 1: Fetch raw accounts from the saved list
+    const rawAccounts: ApolloRawAccount[] = [];
     let page = 1;
     const perPage = 100;
     let totalPages = 1;
@@ -140,10 +141,58 @@ export async function POST(req: NextRequest) {
       }
 
       const data = await res.json();
-      allAccounts.push(...(data.accounts || []).map(mapAccount));
+      rawAccounts.push(...(data.accounts || []));
       totalPages = data.pagination?.total_pages ?? 1;
       page++;
     }
+
+    // Step 2: Enrich accounts with organization data (for headcount, description, industry)
+    // Collect unique domains
+    const domains = [...new Set(
+      rawAccounts
+        .map((a: ApolloRawAccount) => a.domain)
+        .filter((d): d is string => !!d),
+    )];
+
+    const orgCache: Record<string, ApolloRawOrg> = {};
+
+    // Enrich in parallel batches of 5
+    const enrichBatchSize = 5;
+    for (let i = 0; i < domains.length; i += enrichBatchSize) {
+      const batch = domains.slice(i, i + enrichBatchSize);
+      const results = await Promise.allSettled(
+        batch.map(async (domain) => {
+          try {
+            const res = await fetch(
+              `${APOLLO_BASE}/organizations/enrich?domain=${encodeURIComponent(domain)}`,
+              {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Cache-Control': 'no-cache',
+                  'x-api-key': apiKey,
+                },
+              },
+            );
+            if (res.ok) {
+              const data = await res.json();
+              if (data.organization) {
+                orgCache[domain] = data.organization;
+              }
+            }
+          } catch {
+            // Skip enrichment failures silently
+          }
+        }),
+      );
+      void results; // consume settled promises
+    }
+
+    // Step 3: Map accounts with enrichment data merged in
+    const allAccounts = rawAccounts.map((raw: ApolloRawAccount) => {
+      const org = raw.domain ? orgCache[raw.domain] : undefined;
+      return mapAccount(raw, org);
+    });
 
     return NextResponse.json({ accounts: allAccounts, total: allAccounts.length });
   } catch (err) {
@@ -224,6 +273,23 @@ interface ApolloRawAccount {
   country?: string | null;
 }
 
+// Enriched organization data from /organizations/enrich
+interface ApolloRawOrg {
+  name?: string | null;
+  website_url?: string | null;
+  domain?: string | null;
+  phone?: string | null;
+  linkedin_url?: string | null;
+  industry?: string | null;
+  founded_year?: number | null;
+  estimated_num_employees?: number | null;
+  short_description?: string | null;
+  seo_description?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+}
+
 interface ApolloAccount {
   company_name: string;
   website: string;
@@ -237,17 +303,27 @@ interface ApolloAccount {
   founded_year: string;
 }
 
-function mapAccount(raw: ApolloRawAccount): ApolloAccount {
+function mapAccount(raw: ApolloRawAccount, org?: ApolloRawOrg): ApolloAccount {
+  // Merge: prefer account-level data, fall back to enriched org data
   return {
-    company_name: raw.name ?? '',
-    website: raw.website_url ?? raw.domain ?? '',
-    location: [raw.city, raw.state, raw.country].filter(Boolean).join(', '),
-    headcount: raw.estimated_num_employees ? String(raw.estimated_num_employees) : '',
-    description: raw.short_description ?? raw.seo_description ?? '',
-    phone: raw.phone ?? '',
-    linkedin_url: raw.linkedin_url ?? '',
-    domain: raw.domain ?? '',
-    industry: raw.industry ?? '',
-    founded_year: raw.founded_year ? String(raw.founded_year) : '',
+    company_name: raw.name ?? org?.name ?? '',
+    website: raw.website_url ?? org?.website_url ?? raw.domain ?? '',
+    location:
+      [raw.city ?? org?.city, raw.state ?? org?.state, raw.country ?? org?.country]
+        .filter(Boolean)
+        .join(', '),
+    headcount:
+      (raw.estimated_num_employees ?? org?.estimated_num_employees)
+        ? String(raw.estimated_num_employees ?? org?.estimated_num_employees)
+        : '',
+    description: raw.short_description ?? org?.short_description ?? raw.seo_description ?? org?.seo_description ?? '',
+    phone: raw.phone ?? org?.phone ?? '',
+    linkedin_url: raw.linkedin_url ?? org?.linkedin_url ?? '',
+    domain: raw.domain ?? org?.domain ?? '',
+    industry: raw.industry ?? org?.industry ?? '',
+    founded_year:
+      (raw.founded_year ?? org?.founded_year)
+        ? String(raw.founded_year ?? org?.founded_year)
+        : '',
   };
 }

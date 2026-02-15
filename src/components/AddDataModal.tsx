@@ -240,14 +240,33 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
     try {
       const columnMap: Record<string, string> = {};
       const activeMappings = mappings.filter((m) => m.target !== '__skip__');
+      let maxPos = columns.reduce((max, c) => Math.max(max, c.position), -1);
 
       for (const mapping of activeMappings) {
         if (mapping.target === '__create__') {
-          const newCol = await addColumn(mapping.apolloLabel);
-          if (newCol) columnMap[mapping.apolloField] = newCol.id;
+          try {
+            maxPos += 1;
+            const newCol = await db.insertOne<ColumnDefinition>('column_definitions', {
+              workspace_id: activeWorkspace.id,
+              name: mapping.apolloLabel,
+              field_key: mapping.apolloLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
+              position: maxPos,
+              width: 200,
+              is_ai_column: false,
+            });
+            if (newCol) columnMap[mapping.apolloField] = newCol.id;
+          } catch (colErr) {
+            console.error(`Failed to create column "${mapping.apolloLabel}":`, colErr);
+          }
         } else {
           columnMap[mapping.apolloField] = mapping.target;
         }
+      }
+
+      if (Object.keys(columnMap).length === 0) {
+        toast('No columns mapped — nothing to import', 'error');
+        setImporting(false);
+        return;
       }
 
       const batchSize = 50;
@@ -255,11 +274,20 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
 
       for (let i = 0; i < records.length; i += batchSize) {
         const batch = records.slice(i, i + batchSize);
-        const rowInserts = batch.map(() => ({ workspace_id: activeWorkspace.id }));
-        const newRows = await db.insert<Row>('rows', rowInserts);
+
+        let newRows: Row[];
+        try {
+          newRows = await db.insert<Row>('rows', batch.map(() => ({
+            workspace_id: activeWorkspace.id,
+          })));
+        } catch (rowErr) {
+          console.error('Failed to insert rows:', rowErr);
+          toast('Error inserting rows', 'error');
+          break;
+        }
 
         if (!newRows || newRows.length === 0) {
-          toast('Error inserting rows', 'error');
+          toast('Error inserting rows — empty result', 'error');
           break;
         }
 
@@ -275,7 +303,11 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
         });
 
         if (cellInserts.length > 0) {
-          await db.insert('cell_values', cellInserts);
+          try {
+            await db.insert('cell_values', cellInserts);
+          } catch (cellErr) {
+            console.error('Failed to insert cells:', cellErr);
+          }
         }
 
         done += batch.length;
@@ -285,12 +317,13 @@ export default function AddDataModal({ open, onClose, onCsvUpload }: AddDataModa
       await refreshData();
       toast(`Imported ${records.length} ${entityLabel} from Apollo`, 'success');
       onClose();
-    } catch {
-      toast('Import failed', 'error');
+    } catch (err) {
+      console.error('Apollo import error:', err);
+      toast(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
     } finally {
       setImporting(false);
     }
-  }, [activeWorkspace, records, mappings, addColumn, entityLabel, refreshData, toast, onClose]);
+  }, [activeWorkspace, records, mappings, columns, entityLabel, refreshData, toast, onClose]);
 
   // ── Single row handlers ──
 
